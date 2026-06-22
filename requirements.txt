@@ -1,0 +1,10 @@
+fastapi
+langchain
+langgraph
+langchain-community
+langchain-core
+langchain-classic
+python-dotenv
+langchain-tavily
+langchain-groq
+langsmith

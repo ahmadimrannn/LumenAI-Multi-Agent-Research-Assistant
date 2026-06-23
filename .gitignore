@@ -9,3 +9,6 @@ wheels/
 # Virtual environments
 .venv
 .env
+PHASE2_TODO.md
+PORTFOLIO_WORTHY_FEATURES.md
+PRODUCTION_PRACTICES.md

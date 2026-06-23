@@ -10,12 +10,12 @@ class ResearchRequest(BaseModel):
 
 
 @app.post("/research")
-async def get_findings(request: ResearchRequest):
+def get_findings(request: ResearchRequest):
   if not request.query:
     raise HTTPException(status_code=400, detail=f"Can't fetch results without a query.")
   
   try:
-    response = await graph_executor(request.query)
+    response = graph_executor(request.query)
     return response
   
   except Exception as e:

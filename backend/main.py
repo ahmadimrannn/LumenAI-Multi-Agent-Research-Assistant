@@ -19,11 +19,15 @@ def main():
     graph = graph_builder.compile(checkpointer=memory)
     config = {"configurable": {"thread_id": "test-1"}}
 
-    result = graph.invoke({"query": "what are the risks of ai agents in real life"}, config=config)
+    result = graph.invoke({"query": "Does LangGraph's MemorySaver checkpointer persist state across server restarts, or only within a single process?"}, config=config)
     response = result['findings']
+    search_results = result['search_results']
 
-    return response
+    return {
+        "response": response,
+        "search_results": search_results,
+    }
 
 if __name__=="__main__":
     output = main()
-    print(output)
+    print(f"Response: {output['response']}\n\n, Search Results: {output['search_results']}")

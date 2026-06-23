@@ -1,33 +1,24 @@
-from langgraph.graph import StateGraph, START, END
-from agents.researcher import researcher_agent
-from agents.synthesizer import synthesizer_agent
-from agents.agents_state import AgentsState
-from langgraph.checkpoint.memory import MemorySaver
+from fastapi import FastAPI
+from executor import graph_executor
+from pydantic import BaseModel
+from fastapi import HTTPException
 
-def main():
-    graph_builder = StateGraph(AgentsState)
+app = FastAPI()
 
-    memory = MemorySaver()
+class ResearchRequest(BaseModel):
+  query: str
 
-    graph_builder.add_node('researcher', researcher_agent)
-    graph_builder.add_node('synthesizer', synthesizer_agent)
 
-    graph_builder.add_edge(START, 'researcher')
-    graph_builder.add_edge('researcher', 'synthesizer')
-    graph_builder.add_edge('synthesizer', END)
-
-    graph = graph_builder.compile(checkpointer=memory)
-    config = {"configurable": {"thread_id": "test-1"}}
-
-    result = graph.invoke({"query": "Does LangGraph's MemorySaver checkpointer persist state across server restarts, or only within a single process?"}, config=config)
-    response = result['findings']
-    search_results = result['search_results']
-
-    return {
-        "response": response,
-        "search_results": search_results,
-    }
-
-if __name__=="__main__":
-    output = main()
-    print(f"Response: {output['response']}\n\n, Search Results: {output['search_results']}")
+@app.post("/research")
+async def get_findings(request: ResearchRequest):
+  if not request.query:
+    raise HTTPException(status_code=400, detail=f"Can't fetch results without a query.")
+  
+  try:
+    response = await graph_executor(request.query)
+    return response
+  
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=f"Can't fetch results {str(e)}")
+  
+  

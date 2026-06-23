@@ -29,7 +29,7 @@ def synthesizer_agent(state: AgentsState):
     - **After your findings, include a "Sources Used" list that maps EVERY source URL provided to either: (a) which section of your findings it was used in, or (b) "Not used: [one-sentence reason]"**.
     - Before citing a source for a claim, check that the source is actually discussing the same specific subject as the claim — not just a related or adjacent topic. If a source discusses a different but related mechanism, name that distinction explicitly rather than treating it as direct evidence.
 
-    Be concise but thorough.
+    Be detailed and thorough.
   """
 
   synthesizer_llm_response = llm.invoke([HumanMessage(content=synthesizer_prompt)])

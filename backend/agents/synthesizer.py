@@ -9,6 +9,7 @@ def synthesizer_agent(state: AgentsState):
   """Generates the report from the search_results"""
 
   query = state['query']
+  print("Query:", query)
   search_results = state['search_results']
 
   synthesizer_prompt = f"""
@@ -28,6 +29,11 @@ def synthesizer_agent(state: AgentsState):
     - Use information from ALL provided search results unless a specific result is genuinely irrelevant to the query — and if you exclude one, say so explicitly and why.
     - **After your findings, include a "Sources Used" list that maps EVERY source URL provided to either: (a) which section of your findings it was used in, or (b) "Not used: [one-sentence reason]"**.
     - Before citing a source for a claim, check that the source is actually discussing the same specific subject as the claim — not just a related or adjacent topic. If a source discusses a different but related mechanism, name that distinction explicitly rather than treating it as direct evidence.
+    - Check state['degraded']. If True, the evidence search hit its retry limit without
+    reaching the relevance threshold — do not present findings as conclusive.
+    Explicitly state that the search was unable to find sufficiently relevant sources
+    after multiple attempts, and that the answer below should be treated as preliminary
+    or incomplete rather than authoritative.
 
     Be detailed and thorough.
   """

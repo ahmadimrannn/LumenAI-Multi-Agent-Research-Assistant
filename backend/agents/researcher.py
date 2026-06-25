@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage
 load_dotenv()
 
 def invoke_tavily(query: str):
-  tavily = TavilySearch(max_results=3)
+  tavily = TavilySearch(max_results=10, search_depth="advanced")
   response = tavily.invoke({"query": query})
   result = response['results'] if "results" in response else "Couldn't find results due to some error"
 
@@ -37,7 +37,7 @@ def researcher_agent(state: AgentsState):
       It failed for this reason: {correction_hint}.
 
       - If correction_hint is "broaden": make the query less specific, remove narrow qualifiers, search for the general topic.
-      - If correction_hint is "narrow": add specific qualifiers (timeframe, subtopic, named entities) to focus the search.
+      - If correction_hint is "seek_context": the topic is correct but results are too short/shallow (e.g., just a number or one-line fact). Rewrite the query to surface pages with more surrounding explanation — drop narrow qualifiers, ask for background, mechanism, or context rather than just the isolated fact.
       - If correction_hint is "pivot_angle": keep the same topic but rephrase using different keywords or a different framing of intent — do not just add synonyms.
 
       Important: stay grounded in the original question above. If your rewrite is drifting toward

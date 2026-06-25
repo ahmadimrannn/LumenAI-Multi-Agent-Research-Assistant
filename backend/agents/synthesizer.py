@@ -11,6 +11,7 @@ def synthesizer_agent(state: AgentsState):
   query = state['query']
   print("Query:", query)
   search_results = state['search_results']
+  degraded = state['degraded']
 
   synthesizer_prompt = f"""
     You are a report synthesizer. Using ONLY the information present in the search results below, write findings on: {query}
@@ -29,13 +30,16 @@ def synthesizer_agent(state: AgentsState):
     - Use information from ALL provided search results unless a specific result is genuinely irrelevant to the query — and if you exclude one, say so explicitly and why.
     - **After your findings, include a "Sources Used" list that maps EVERY source URL provided to either: (a) which section of your findings it was used in, or (b) "Not used: [one-sentence reason]"**.
     - Before citing a source for a claim, check that the source is actually discussing the same specific subject as the claim — not just a related or adjacent topic. If a source discusses a different but related mechanism, name that distinction explicitly rather than treating it as direct evidence.
-    - Check state['degraded']. If True, the evidence search hit its retry limit without
-    reaching the relevance threshold — do not present findings as conclusive.
-    Explicitly state that the search was unable to find sufficiently relevant sources
-    after multiple attempts, and that the answer below should be treated as preliminary
-    or incomplete rather than authoritative.
-
-    Be detailed and thorough.
+    - The evidence search status for this run is: {"DEGRADED — the search hit its retry limit without reaching the relevance threshold" if degraded else "OK — results met the relevance threshold"}.
+    If DEGRADED: state this clearly in a "Confidence Note" at the top of your findings, before any other content.
+    This affects how confidently you frame conclusions — NOT how much evidence you extract or how long your
+    response is. Still extract and present every relevant fact from every source provided, in full detail.
+    Being uncertain about the overall picture does not mean writing less about what was actually found.
+    - Extract and use every distinct fact, figure, and claim relevant to the query from each of the {len(search_results)} sources provided — do not summarize down to only the most obvious points. Aim for comprehensive coverage of the source material, not a condensed overview. A thorough answer to this query should typically run several paragraphs per major section, not one or two sentences.
+    - Before stating any statistic as "the current" value, scan all sources for that same statistic.
+    If sources report different numbers, you MUST surface the discrepancy explicitly (e.g., "Source A
+    reports 4.2%, dated [X], while Source B reports 2.7%, dated [Y]") rather than presenting one number
+    as settled.
   """
 
   synthesizer_llm_response = llm.invoke([HumanMessage(content=synthesizer_prompt)])

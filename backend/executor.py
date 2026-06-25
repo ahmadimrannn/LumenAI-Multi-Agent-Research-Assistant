@@ -56,5 +56,5 @@ def graph_executor(query: str):
     }
 
 if __name__=="__main__":
-    output = graph_executor("Current US federal funds interest rate set by the Federal Reserve.")
+    output = graph_executor("Compare the Series B and Series C funding trends for enterprise AI software startups over the last 12 months. Include average round sizes, leading venture capital firms, and notable market exits.")
     print(f"Response: {output['response']}\n\n, Search Results: {output['search_results']}\n\n, Degraded: {output['degraded']}\n\n, Retry History: {output['retry_history']}")

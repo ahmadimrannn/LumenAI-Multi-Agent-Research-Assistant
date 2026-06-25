@@ -8,6 +8,8 @@ def supervisor_agent(state: AgentsState):
 
   is_thin, reason, failed_metric = evaluate_results(state)
   if not is_thin:
+    if reason == "borderline_pass":
+      print(f"[supervisor] Passed on tolerance: avg_score={failed_metric.get('avg_score')}, margin={failed_metric.get('margin')}")
     return {
       "degraded": False,
       "route": "synthesizer",
@@ -18,7 +20,7 @@ def supervisor_agent(state: AgentsState):
   correction_map = {
     "low_relevance_score": "pivot_angle",
     "low_result_count": "broaden",
-    "thin_content": "narrow"
+    "thin_content": "seek_context",
   }
 
   feedback: RetryFeedback = {

@@ -64,6 +64,12 @@ Assume the reader has never seen the evidence.
 
 Every important piece of evidence should be explained with sufficient context.
 
+***Must Follow Requirements***:
+  - Your mission is to create a 1100-1300 words minimum report.
+  - I don't want you to just throw misinformation to complete that 1100-1300 words count requirement.
+  - Instead, by utilizing the evidences, and the related evidence information you have, explain the topics given in the evidence enough to reach that 1200+ words count.
+  - Explain every heading in full detail so that every paragraph looks bigger but only include relevant information.
+
 --------------------------------------------------
 INTERNAL PLANNING
 --------------------------------------------------
@@ -94,25 +100,25 @@ The structure MUST emerge naturally from the evidence.
 
 Possible sections include (only if supported):
 
-• Executive Summary
-• Background
-• Historical Context
-• Current Situation
-• Key Findings
-• Timeline
-• Technical Explanation
-• Methodology
-• Comparative Analysis
-• Performance Analysis
-• Market Analysis
-• Regulatory Landscape
-• Opportunities
-• Risks
-• Challenges
-• Limitations
-• Conflicting Evidence
-• Missing Information
-• Conclusion
+• Executive Summary (Explain this in full detail)
+• Background (Explain this in full detail)
+• Historical Context (Explain this in full detail)
+• Current Situation (Explain this in full detail)
+• Key Findings (Explain this in full detail)
+• Timeline (Explain this in full detail)
+• Technical Explanation (Explain this in full detail)
+• Methodology (Explain this in full detail)
+• Comparative Analysis (Explain this in full detail)
+• Performance Analysis (Explain this in full detail)
+• Market Analysis (Explain this in full detail)
+• Regulatory Landscape (Explain this in full detail)
+• Opportunities (Explain this in full detail)
+• Risks (Explain this in full detail)
+• Challenges (Explain this in full detail)
+• Limitations 
+• Conflicting Evidence (Explain this in full detail)
+• Missing Information 
+• Conclusion (Explain this in full detail)
 
 These are examples only.
 
@@ -279,28 +285,6 @@ If evidence status is OK,
 do not include a confidence note.
 
 --------------------------------------------------
-QUALITY CHECK
---------------------------------------------------
-
-Before returning the report, internally verify:
-
-✓ Every major evidence object has been used.
-
-✓ Every important statistic has been discussed.
-
-✓ Every important event has been discussed.
-
-✓ Every conflict has been reported.
-
-✓ No unsupported claims were added.
-
-✓ No evidence was silently ignored.
-
-If any relevant evidence has not been used,
-
-revise the report before returning it.
-
---------------------------------------------------
 FINAL OUTPUT
 --------------------------------------------------
 
@@ -316,6 +300,11 @@ REPORT DEPTH REQUIREMENTS (MANDATORY)
 --------------------------------------------------
 
 This is a research report, NOT an executive summary.
+
+***Must Follow Requirements***:
+  - Your mission is to create a 1100-1300 words minimum report.
+  - I don't want you to just throw misinformation to complete that 1100-1300 words count requirement.
+  - Instead, by utilizing the evidences, and the related evidence information you have, explain the topics given in the evidence enough to reach that 1200+ words count.
 
 Your objective is to exhaustively communicate every relevant piece of evidence.
 

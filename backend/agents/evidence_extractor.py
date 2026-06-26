@@ -2,6 +2,7 @@ from agents.agents_state import AgentsState
 from config.llm import llm
 from langchain_core.messages import HumanMessage, AIMessage
 import json
+import re
 
 
 def evidence_extractor_agent(state: AgentsState):
@@ -11,224 +12,150 @@ def evidence_extractor_agent(state: AgentsState):
   search_results = state["search_results"]
 
   evidence_extractor_prompt = f"""
-    You are an Evidence Extraction Agent.
+You are an Evidence Extraction Agent.
 
-    Your ONLY responsibility is to transform unstructured search results into structured evidence.
+Your only responsibility is to transform search results into structured evidence.
 
-    You are NOT writing the final report.
+The Report Writer will NEVER see the original search results. Every relevant detail omitted here is permanently lost.
 
-    Another agent will write the report later.
+Goal: LOSSLESS EVIDENCE EXTRACTION.
 
-    That agent will NEVER see the original search results.
+ORIGINAL USER QUERY
+{original_query}
 
-    Therefore, EVERY relevant fact you fail to extract is permanently lost.
+SEARCH RESULTS
+{search_results}
 
-    Your goal is LOSSLESS EVIDENCE EXTRACTION.
+RULES
 
-    --------------------------------------------------
-    ORIGINAL USER QUERY
-    --------------------------------------------------
+- Extract evidence only.
+- Never summarize, compare sources, detect conflicts, explain, conclude or infer.
+- Treat every source independently.
+- Never merge information from different sources.
+- Preserve wording whenever practical.
+- Never normalize numbers, dates or financial figures.
+- Prefer extracting too much rather than too little.
+- If one paragraph contains multiple independent facts, extract every one.
+- If two sources disagree, preserve both exactly.
+- If information is unavailable, return null.
 
-    {original_query}
+WHAT TO EXTRACT
 
-    --------------------------------------------------
-    SEARCH RESULTS
-    --------------------------------------------------
+For every source extract every piece of evidence relevant to answering the user's query, including:
 
-    {search_results}
+- source metadata
+- entities
+- factual statements
+- statistics
+- financial metrics
+- events
+- claims
+- quotations
+- methodology
+- assumptions
+- limitations
+- risks
 
-    --------------------------------------------------
-    RULES
-    --------------------------------------------------
+Every independent piece of evidence must become its own evidence object.
 
-    DO NOT summarize.
+Each evidence object should preserve:
 
-    DO NOT compare sources.
+- the main statement
+- supporting context
+- related entities
+- dates
+- numbers
+- surrounding details necessary for interpretation
 
-    DO NOT detect conflicts.
+Never compress several independent facts into one evidence object.
 
-    DO NOT explain anything.
+SELF CHECK
 
-    DO NOT draw conclusions.
+Before returning verify:
 
-    DO NOT infer missing information.
+✓ Every relevant paragraph has been processed.
+✓ Every statistic has been extracted.
+✓ Every factual statement has been extracted.
+✓ Every event has been extracted.
+✓ Every important supporting detail has been preserved.
+✓ No evidence was discarded because it seemed less important.
 
-    DO NOT normalize numbers.
+OUTPUT
 
-    DO NOT rewrite facts into shorter versions.
+Return ONLY valid JSON.
 
-    DO NOT merge multiple facts into one.
+[
+  {{
+    "source_index": 1,
+    "source_url": "",
+    "title": "",
+    "publication_date": "",
+    "organization": "",
 
-    Treat every search result independently.
+    "entities": {{
+      "companies": [],
+      "people": [],
+      "products": [],
+      "technologies": [],
+      "countries": []
+    }},
 
-    Never merge information across sources.
+    "evidence": [
+      {{
+        "type": "fact | statistic | event | claim | quote | limitation | methodology | risk",
 
-    Preserve wording whenever practical.
+        "subject": "",
 
-    Err on the side of extracting TOO MUCH rather than TOO LITTLE.
+        "statement": "",
 
-    Compression is considered FAILURE.
+        "supporting_details": [
+          ""
+        ],
 
-    --------------------------------------------------
-    WHAT TO EXTRACT
-    --------------------------------------------------
+        "numbers": [
+          {{
+            "metric": "",
+            "value": "",
+            "unit": "",
+            "date": "",
+            "context": ""
+          }}
+        ],
 
-    For EVERY search result, extract every piece of information directly relevant to answering the user's query.
+        "related_entities": [],
 
-    This includes (when present):
-
-    - source_url
-    - title
-    - publication_date
-    - organization
-    - author
-    - companies
-    - people
-    - products
-    - technologies
-    - countries
-    - facts
-    - statistics
-    - financial figures
-    - percentages
-    - valuations
-    - funding rounds
-    - investments
-    - acquisitions
-    - partnerships
-    - launches
-    - regulations
-    - revenue
-    - ARR
-    - notable events
-    - timelines
-    - claims
-    - quotations
-    - methodology
-    - assumptions
-    - limitations
-    - risks
-
-    If a paragraph contains:
-
-    - five facts → extract five facts
-
-    - three statistics → extract three statistics
-
-    - two events → extract two events
-
-    Do NOT compress multiple pieces of evidence into one sentence.
-
-    If two sources disagree, preserve BOTH exactly.
-
-    Never attempt to resolve disagreements.
-
-    If information is missing, return null.
-
-    --------------------------------------------------
-    SELF CHECK
-    --------------------------------------------------
-
-    Before returning your answer verify:
-
-    ✓ Every relevant statistic has been extracted.
-
-    ✓ Every relevant date has been extracted.
-
-    ✓ Every relevant event has been extracted.
-
-    ✓ Every relevant entity has been extracted.
-
-    ✓ Every relevant claim has been extracted.
-
-    ✓ Every relevant quote has been extracted.
-
-    ✓ No relevant paragraph has been skipped.
-
-    If any answer is NO, continue extracting before returning.
-
-    --------------------------------------------------
-    OUTPUT FORMAT
-    --------------------------------------------------
-
-    Return ONLY valid JSON.
-
-    [
-        {{
-            "source_index": 1,
-            "source_url": "",
-            "title": "",
-            "publication_date": "",
-            "organization": "",
-
-            "entities": {{
-                "companies": [],
-                "people": [],
-                "products": [],
-                "technologies": [],
-                "countries": []
-            }},
-
-            "facts": [],
-
-            "statistics": [
-                {{
-                    "subject": "",
-                    "metric": "",
-                    "value": "",
-                    "unit": "",
-                    "date": "",
-                    "context": "",
-                    "source_sentence": ""
-                }}
-            ],
-
-            "events": [
-                {{
-                    "date": "",
-                    "event": ""
-                }}
-            ],
-
-            "quotes": [],
-
-            "limitations": [],
-
-            "supporting_details": [],
-
-            "raw_claims": []
-        }}
+        "source_sentence": ""
+      }}
     ]
+  }}
+]
 
-    Return ONLY JSON.
-
-    No markdown.
-
-    No explanations.
-
-    No introductory text.
-  """
+Return ONLY JSON.
+No markdown.
+No explanations.
+No introductory text.
+"""
 
   response = llm.invoke([HumanMessage(content=evidence_extractor_prompt)])
+  raw_content = response.content.strip()
+
+  # Strip markdown code fences if the model added them anyway
+  raw_content = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_content, flags=re.MULTILINE)
 
   try:
-    extracted_evidence = json.loads(response.content)
+      extracted_evidence = json.loads(raw_content)
+      evidence_count = len(extracted_evidence) if isinstance(extracted_evidence, list) else 0
+      parse_failed = False
   except json.JSONDecodeError:
-    extracted_evidence = response.content
-
-    evidence_count = (
-      len(extracted_evidence)
-      if isinstance(extracted_evidence, list)
-      else 0
-    )
+      extracted_evidence = raw_content
+      evidence_count = 0
+      parse_failed = True
 
   agent_message = f"""
-    🔍 Evidence Extractor completed successfully.
+    🔍 Evidence Extractor completed {"with PARSE FAILURE — raw text passed forward" if parse_failed else "successfully"}.
 
     Original Sources: {len(search_results)}
-
     Evidence Objects Extracted: {evidence_count}
-
     Next Agent → Conflict Detector
   """
 

@@ -9,6 +9,7 @@ from agents.report_writer import report_writer_agent
 from agents.agents_state import AgentsState
 from langgraph.checkpoint.memory import MemorySaver
 from utils.select_route import select_route
+import uuid
 
 def graph_executor(query: str):
     graph_builder = StateGraph(AgentsState)
@@ -37,7 +38,7 @@ def graph_executor(query: str):
 
 
     graph = graph_builder.compile(checkpointer=memory)
-    config = {"configurable": {"thread_id": 1}}
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
 
     initial_state = {
         "query": query,
@@ -54,7 +55,7 @@ def graph_executor(query: str):
     }
     result = graph.invoke(initial_state, config=config)
     response = result['findings']
-    search_results = result['search_results'],
+    search_results = result['search_results']
     evidence_extracted = result['evidence_extracted']
     conflicts_analysis = result['conflicts_analysis']
     degraded = result['degraded']
@@ -70,7 +71,7 @@ def graph_executor(query: str):
     }
 
 if __name__=="__main__":
-    
-    output = graph_executor("What is Anthropic's current valuation and total funding raised, and how does it compare to OpenAI's? Include the most recent funding round for each.")
+
+    output = graph_executor("Produce a research report on the current global adoption of nuclear energy. Compare reactor construction, SMR development, government policies, investment trends, electricity generation, safety concerns, economics, and conflicting expert opinions.")
 
     print(f"Response: {output['response']}\n\n, Search Results: {output['search_results']}\n\n, Evidence Extracted: {output['evidence_extracted']}\n\n, Conflicts Analysis: {output['conflicts_analysis']}\n\n, Degraded: {output['degraded']}\n\n, Retry History: {output['retry_history']}")

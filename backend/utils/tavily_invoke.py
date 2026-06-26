@@ -11,6 +11,5 @@ def invoke_tavily(query: str):
     exclude_domains=EXCLUDE_DOMAINS,
   )
   response = tavily.invoke({"query": query})
-  result = response['results'] if "results" in response else "Couldn't find results due to some error"
 
-  return result
+  return response.get("results", [])

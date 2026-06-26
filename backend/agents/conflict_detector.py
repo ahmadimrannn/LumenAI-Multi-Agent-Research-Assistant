@@ -1,6 +1,8 @@
 from agents.agents_state import AgentsState
 from config.llm import llm
 from langchain_core.messages import HumanMessage, AIMessage
+import json
+import re
 
 def conflicts_analysis_agent(state: AgentsState):
   """Compare the extracted evidences to find conflicts between sources."""
@@ -9,181 +11,164 @@ def conflicts_analysis_agent(state: AgentsState):
   extracted_evidence = state['evidence_extracted']
 
   json_schema = """
+{
+  "topics": [
     {
-      "conflicts": [
+      "topic": "",
+      "summary": "",
+      "evidence": [
         {
-          "subject": "",
-          "metric": "",
-          "sources": [
+          "source_index": 1,
+          "statement": "",
+          "supporting_details": [],
+          "statistics": [
             {
-              "source_index": "",
+              "metric": "",
               "value": "",
+              "unit": "",
               "date": "",
               "context": ""
             }
           ],
-          "possible_reason": ""
+          "events": [
+            {
+              "date": "",
+              "event": ""
+            }
+          ]
         }
-      ],
-
-      "consistent_information": [
-        {
-          "subject": "",
-          "metric": "",
-          "value": "",
-          "supporting_sources": []
-        }
-      ],
-
-      "complementary_information": [
-        {
-          "subject": "",
-          "description": "",
-          "source_index": ""
-        }
-      ],
-
-      "missing_information": [
-        ""
       ]
     }
-  """
+  ],
+
+  "conflicts": [
+    {
+      "subject": "",
+      "metric": "",
+      "description": "",
+      "reported_values": [
+        {
+          "source_index": 1,
+          "value": "",
+          "date": "",
+          "context": ""
+        }
+      ],
+      "possible_reason": ""
+    }
+  ],
+
+  "consensus": [
+    {
+      "subject": "",
+      "finding": "",
+      "supporting_sources": [],
+      "supporting_evidence": []
+    }
+  ],
+
+  "complementary_information": [
+    {
+      "subject": "",
+      "description": "",
+      "source_index": "",
+      "related_to": ""
+    }
+  ],
+
+  "chronology": [
+    {
+      "date": "",
+      "event": "",
+      "source_index": ""
+    }
+  ],
+
+  "missing_information": [
+    ""
+  ]
+}
+"""
 
   conflict_detector_prompt = f"""
-    You are a Conflict Detection Agent.
+You are a Conflict Detection Agent.
 
-    Your ONLY responsibility is to compare structured evidence extracted from multiple sources.
+Your only responsibility is to analyze structured evidence extracted from multiple sources.
 
-    DO NOT summarize.
-    DO NOT write a report.
-    DO NOT determine which source is correct.
-    DO NOT remove conflicting information.
-    DO NOT rewrite evidence.
-    DO NOT infer facts that are not explicitly present.
+Do not summarize, write a report, rewrite evidence, remove evidence, infer new facts or decide which source is correct.
 
-    Original User Query:
-    {original_query}
+ORIGINAL USER QUERY
+{original_query}
 
-    Structured Evidence:
-    {extracted_evidence}
+STRUCTURED EVIDENCE
+{extracted_evidence}
 
-    --------------------------------------------------
-    TASK
-    --------------------------------------------------
+TASK
 
-    Analyze the structured evidence and identify:
+Analyze every evidence object and classify it into one or more of the following:
 
-    1. Conflicting information
-    2. Consistent information
-    3. Complementary information
-    4. Missing information
+- conflicts
+- consistent_information
+- complementary_information
+- unique_information
+- missing_information
 
-    --------------------------------------------------
-    CONFLICT RULES
-    --------------------------------------------------
+RULES
 
-    A conflict exists when two or more sources report different values for the same subject and metric.
+- A conflict exists only when multiple sources report different values or statements about the same subject, metric or event during the same timeframe.
+- Differences caused by different reporting dates, historical values or additional context are not conflicts unless they directly contradict one another.
+- If multiple sources report the same information, group them under consistent_information.
+- If one source adds new details that do not contradict other sources, classify them as complementary_information.
+- If information appears in only one source and neither agrees nor conflicts with another source, classify it as unique_information.
+- Do not discard any evidence.
+- Every evidence object must appear in at least one category.
+- If the user's query requires information that is absent from all extracted evidence, list it under missing_information.
 
-    Examples:
+SELF CHECK
 
-    Anthropic valuation
-    Source A → $183B
-    Source B → $350B
+Before returning verify:
 
-    OpenAI funding
-    Source A → $62B
-    Source B → $57B
+✓ Every evidence object has been classified.
+✓ Every genuine conflict has been preserved.
+✓ No historical values were treated as conflicts solely because they differ from newer values.
+✓ No complementary information was labeled as conflicting.
+✓ No evidence has been omitted.
 
-    Interest Rate
-    Source A → 4.25%
-    Source B → 4.50%
+OUTPUT FORMAT
 
-    Do NOT attempt to decide which value is correct.
+Return ONLY valid JSON.
 
-    Store every reported value.
+Use the following schema exactly:
 
-    --------------------------------------------------
-    CONSISTENCY RULES
-    --------------------------------------------------
+{json_schema}
 
-    If multiple independent sources report essentially the same information,
-    mark it as CONSISTENT.
-
-    Example
-
-    OpenAI raised $40B in March 2025
-
-    reported by
-
-    Source 2
-    Source 5
-    Source 8
-
-    --------------------------------------------------
-    COMPLEMENTARY INFORMATION
-    --------------------------------------------------
-
-    Some sources may provide additional information without contradicting others.
-
-    Example
-
-    Source A
-    Anthropic valuation
-
-    Source B
-    Anthropic revenue
-
-    These are complementary.
-
-    Do NOT label these as conflicts.
-
-    --------------------------------------------------
-    MISSING INFORMATION
-    --------------------------------------------------
-
-    If the user's query asks for information that does not appear in any extracted evidence,
-    list it under missing_information.
-
-    Example
-
-    Query asks
-
-    "Average Series A funding"
-
-    No source reports it.
-
-    Return it as missing_information.
-
-    --------------------------------------------------
-    OUTPUT FORMAT
-    --------------------------------------------------
-
-    Return ONLY valid JSON.
-
-    Use the following schema exactly:
-
-    {json_schema}
-
-    Return ONLY JSON.
-
-    No markdown.
-
-    No explanations.
-
-    No additional text.
-  """
+Return ONLY JSON.
+No markdown.
+No explanations.
+No additional text.
+"""
 
   response = llm.invoke([HumanMessage(content=conflict_detector_prompt)])
-  conflicts_analysis = response.content
+  raw_content = response.content.strip()
+  raw_content = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_content, flags=re.MULTILINE)
+
+  try:
+    json.loads(raw_content)
+    parse_failed = False
+  except:
+    parse_failed = True
+
+  conflicts_analysis = raw_content
+
+  evidence_source_count = (
+      len(extracted_evidence) if isinstance(extracted_evidence, list) else 0
+  )
 
   agent_message = f"""
-    ⚖️ Conflict Detector completed successfully.
+  ⚖️ Conflict Detector completed {"with PARSE FAILURE — malformed JSON forwarded" if parse_failed else "successfully"}.
 
-    Evidence Sources: {len(extracted_evidence)}
-
-    Conflict analysis generated successfully.
-
-    Next Agent → Report Writer
+  Evidence Sources: {evidence_source_count}
+  Next Agent → Report Writer
   """
 
   return {

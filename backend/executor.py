@@ -2,11 +2,13 @@
 
 from langgraph.graph import StateGraph, START, END
 from agents.researcher import researcher_agent
-from agents.synthesizer import synthesizer_agent
+from agents.supervisor import supervisor_agent
+from agents.evidence_extractor import evidence_extractor_agent
+from agents.conflict_detector import conflicts_analysis_agent
+from agents.report_writer import report_writer_agent
 from agents.agents_state import AgentsState
 from langgraph.checkpoint.memory import MemorySaver
-from agents.supervisor import supervisor_agent
-from agents.select_route import select_route
+from utils.select_route import select_route
 
 def graph_executor(query: str):
     graph_builder = StateGraph(AgentsState)
@@ -15,7 +17,9 @@ def graph_executor(query: str):
 
     graph_builder.add_node('researcher', researcher_agent)
     graph_builder.add_node('supervisor', supervisor_agent)
-    graph_builder.add_node('synthesizer', synthesizer_agent)
+    graph_builder.add_node('evidence_extractor', evidence_extractor_agent)
+    graph_builder.add_node('conflicts_analyst', conflicts_analysis_agent)
+    graph_builder.add_node('report_writer', report_writer_agent)
 
     graph_builder.add_edge(START, 'researcher')
     graph_builder.add_edge('researcher', 'supervisor')
@@ -24,9 +28,13 @@ def graph_executor(query: str):
         select_route,
         {
             "researcher": "researcher",
-            "synthesizer": "synthesizer"
+            "evidence_extractor": "evidence_extractor"
         }
     )
+    graph_builder.add_edge('evidence_extractor', 'conflicts_analyst')
+    graph_builder.add_edge('conflicts_analyst', 'report_writer')
+    graph_builder.add_edge('report_writer', END)
+
 
     graph = graph_builder.compile(checkpointer=memory)
     config = {"configurable": {"thread_id": 1}}
@@ -37,6 +45,8 @@ def graph_executor(query: str):
         "retry_history": [],
         "findings": "",
         "search_results": [],
+        "evidence_extracted": [],
+        "conflicts_analysis": [],
         "messages": [],
         "next_agent": "",
         "degraded": False,
@@ -44,17 +54,23 @@ def graph_executor(query: str):
     }
     result = graph.invoke(initial_state, config=config)
     response = result['findings']
-    search_results = result['search_results']
+    search_results = result['search_results'],
+    evidence_extracted = result['evidence_extracted']
+    conflicts_analysis = result['conflicts_analysis']
     degraded = result['degraded']
     retry_history = result['retry_history']
 
     return {
         "response": response,
         "search_results": search_results,
+        "evidence_extracted": evidence_extracted,
+        "conflicts_analysis": conflicts_analysis,
         "degraded": degraded,
         "retry_history": retry_history
     }
 
 if __name__=="__main__":
-    output = graph_executor("Compare the Series B and Series C funding trends for enterprise AI software startups over the last 12 months. Include average round sizes, leading venture capital firms, and notable market exits.")
-    print(f"Response: {output['response']}\n\n, Search Results: {output['search_results']}\n\n, Degraded: {output['degraded']}\n\n, Retry History: {output['retry_history']}")
+    
+    output = graph_executor("What is Anthropic's current valuation and total funding raised, and how does it compare to OpenAI's? Include the most recent funding round for each.")
+
+    print(f"Response: {output['response']}\n\n, Search Results: {output['search_results']}\n\n, Evidence Extracted: {output['evidence_extracted']}\n\n, Conflicts Analysis: {output['conflicts_analysis']}\n\n, Degraded: {output['degraded']}\n\n, Retry History: {output['retry_history']}")

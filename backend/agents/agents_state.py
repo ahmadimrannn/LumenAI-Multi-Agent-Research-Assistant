@@ -9,6 +9,8 @@ class AgentsState(TypedDict):
   findings: str
   original_query: str
   query: str
+  evidence_extracted: list[dict]
+  conflicts_analysis: list[dict]
   next_agent: str
   retry_history: list[RetryFeedback]
   degraded: bool

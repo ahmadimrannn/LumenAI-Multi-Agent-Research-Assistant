@@ -1,18 +1,11 @@
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage
 from .agents_state import AgentsState
-from langchain_tavily import TavilySearch
+from utils.tavily_invoke import invoke_tavily 
 from config.llm import llm
 from langchain_core.messages import HumanMessage
 
 load_dotenv()
-
-def invoke_tavily(query: str):
-  tavily = TavilySearch(max_results=10, search_depth="advanced")
-  response = tavily.invoke({"query": query})
-  result = response['results'] if "results" in response else "Couldn't find results due to some error"
-
-  return result
 
 def researcher_agent(state: AgentsState):
   """Gets raw tavily search results"""

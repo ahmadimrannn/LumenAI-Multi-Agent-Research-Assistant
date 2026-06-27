@@ -5,7 +5,8 @@ from config.retry_feedback import RetryFeedback
 
 class AgentsState(TypedDict):
   messages: Annotated[list, add_messages]
-  search_results: list[dict] # Raw Tavily Results
+  search_results: list[dict] 
+  raw_search_results: list[dict] # Raw Tavily Results
   findings: str
   original_query: str
   query: str
@@ -14,4 +15,5 @@ class AgentsState(TypedDict):
   next_agent: str
   retry_history: list[RetryFeedback]
   degraded: bool
+  extraction_failed: bool
   route: str

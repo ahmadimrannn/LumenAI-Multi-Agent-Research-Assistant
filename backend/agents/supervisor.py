@@ -12,7 +12,7 @@ def supervisor_agent(state: AgentsState):
       print(f"[supervisor] Passed on tolerance: avg_score={failed_metric.get('avg_score')}, margin={failed_metric.get('margin')}")
     return {
       "degraded": False,
-      "route": "evidence_extractor",
+      "route": "source_critic",
     }
 
   attempt = len(state.get("retry_history", []))
@@ -36,7 +36,7 @@ def supervisor_agent(state: AgentsState):
     return {
       "degraded": True,
       "retry_history": state.get("retry_history", []) + [feedback],
-      "route": "evidence_extractor",
+      "route": "source_critic",
     }
 
   
@@ -44,7 +44,7 @@ def supervisor_agent(state: AgentsState):
     return {
       "degraded": True,
       "retry_history": state.get("retry_history", []) + [feedback],
-      "route": "evidence_extractor",
+      "route": "source_critic",
     }
 
   return {

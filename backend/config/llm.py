@@ -6,5 +6,6 @@ load_dotenv()
 
 llm = ChatGroq(
   model_name=LLM_MODEL_NAME,
-  temperature=0
+  temperature=0,
+  max_tokens=8192
 )

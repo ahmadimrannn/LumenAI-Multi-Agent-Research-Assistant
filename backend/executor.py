@@ -83,6 +83,7 @@ def graph_executor(query: str):
 
     return {
         "response": response,
+        "messages": messages,
         "search_results": search_results,
         "raw_search_results": raw_search_results,
         "evidence_extracted": evidence_extracted,
@@ -93,7 +94,7 @@ def graph_executor(query: str):
 
 if __name__=="__main__":
 
-    output = graph_executor("What's the current state of nuclear reactor construction, how are governments funding it, and what safety concerns remain unresolved?")
+    output = graph_executor("How is AI being adopted differently across industries, what's driving the gap between large and small firms, and what are the main barriers to wider adoption?")
 
     print(f"Response: {output['response']}\n\n, Degraded: {output['degraded']}\n\n")
 

@@ -4,16 +4,20 @@ from config.retry_feedback import RetryFeedback
 
 
 class AgentsState(TypedDict):
-  messages: Annotated[list, add_messages]
-  search_results: list[dict] 
-  raw_search_results: list[dict] # Raw Tavily Results
-  findings: str
   original_query: str
   query: str
-  evidence_extracted: list[dict]
-  conflicts_analysis: list[dict]
-  next_agent: str
+  is_valid: bool
+  requires_approval: bool
+  classifier_reason: str
+  approval_status: str
+  messages: Annotated[list, add_messages]
+  search_results: list[dict] 
   retry_history: list[RetryFeedback]
   degraded: bool
-  extraction_failed: bool
   route: str
+  raw_search_results: list[dict] # Raw Tavily Results
+  evidence_extracted: list[dict]
+  extraction_failed: bool
+  conflicts_analysis: list[dict]
+  findings: str
+  next_agent: str

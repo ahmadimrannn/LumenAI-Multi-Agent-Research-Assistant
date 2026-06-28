@@ -31,7 +31,7 @@ def supervisor_agent(state: AgentsState):
     "correction_hint": correction_map[reason]
   }
 
-  # Early exit: after the second invoke, if relevance is still under threshold, stop retrying
+  # Early exit: after the second invoke, if relevance is still under threshold, we will stop retrying
   if attempt == 1 and reason == "low_relevance_score" and failed_metric.get("avg_score", 1.0) < EARLY_EXIT_SCORE_THRESHOLD:
     return {
       "degraded": True,

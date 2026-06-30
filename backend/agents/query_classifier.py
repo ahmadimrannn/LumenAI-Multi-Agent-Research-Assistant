@@ -24,6 +24,7 @@ def query_classifier_agent(state: AgentsState):
       "requires_approval": False,
       "classifier_reason": "The query is empty.",
       "route": "end",
+      "termination_reason": "Query is incomplete or malformed. Please provide a clearer research request."
     }
 
 # Only punctuation / symbols
@@ -36,6 +37,7 @@ def query_classifier_agent(state: AgentsState):
       "requires_approval": False,
       "classifier_reason": "The query contains only punctuation or symbols.",
       "route": "end",
+      "termination_reason": "Query is incomplete or malformed. Please provide a clearer research request."
     }
 
 # Extremely short repeated characters
@@ -49,6 +51,7 @@ def query_classifier_agent(state: AgentsState):
       "requires_approval": False,
       "classifier_reason": "The query contains only repeated characters.",
       "route": "end",
+      "termination_reason": "Query is incomplete or malformed. Please provide a clearer research request."
     }
 
   # Looks like random keyboard smashing
@@ -67,103 +70,109 @@ def query_classifier_agent(state: AgentsState):
       "requires_approval": False,
       "classifier_reason": "The query appears to be random keyboard input.",
       "route": "end",
+      "termination_reason": "Query is incomplete or malformed. Please provide a clearer research request."
     }
 
   query_classifier_prompt = f"""
-  You are a Query Intake Classifier for a research assistant. You do not answer
-  the query. You only assess it before research begins.
+    You are a Query Intake Classifier for a research assistant. You do not answer
+    the query. You only assess it before research begins.
 
-  QUERY
-  {query}
+    QUERY
+    {query}
 
-  ASSESS TWO THINGS:
+    ASSESS TWO THINGS:
 
-  1. VALIDITY: Is this query complete and well-formed enough to research?
-      Determine whether this input is sufficiently complete and meaningful to begin a research pipeline.
-    An INVALID query includes (but is not limited to):
+    1. VALIDITY: Is this query complete and well-formed enough to research?
+        Determine whether this input is sufficiently complete and meaningful to begin a research pipeline.
+      An INVALID query includes (but is not limited to):
 
-    • Empty input
-    • Only whitespace
-    • Only punctuation
-    • Only emojis
-    • Random keyboard smashing
-    • Gibberish
-    • Random characters
-    • Repeated symbols
-    • Truncated thoughts
-    • Extremely ambiguous fragments
-    • A single unrelated word
-    • Inputs requiring you to guess the user's intent
+      • Empty input
+      • Only whitespace
+      • Only punctuation
+      • Only emojis
+      • Random keyboard smashing
+      • Gibberish
+      • Random characters
+      • Repeated symbols
+      • Truncated thoughts
+      • Extremely ambiguous fragments
+      • A single unrelated word
+      • Inputs requiring you to guess the user's intent
 
-    Examples of INVALID input:
+      Examples of INVALID input:
+      .....
+      ...
+      ???
+      !!!!
+      ,,,,,
+      ------
+      _____
+      akljdflkaieuriueroeri
+      jdkjfe9893>?>jikfdfjh>?<>
+      😀😀😀😀😀
+      apple
+      because...
+      what are
+      tell me about
+      something
+      continue
+      asdf
+      lkj
+      .....
 
-    .....
-    ...
-    ???
-    !!!!
-    ,,,,,
-    ------
-    _____
+      Do NOT attempt to rewrite or improve these.
 
-    akljdflkaieuriueroeri
+      Do NOT invent a topic.
 
-    jdkjfe9893>?>jikfdfjh>?<>
+      Return is_valid=false.
 
-    😀😀😀😀😀
+      Valid examples: any complete question or research request, even if broad,
+      informal, or imperfectly phrased — completeness of thought matters, not
+      grammar or formality.
 
-    apple
+    2. APPROVAL REQUIREMENT: Would a well-evidenced research report answering this
+      query, if taken at face value by the user, risk being relied upon as
+      authoritative legal, medical, or financial advice for a real decision —
+      OR could the answer be defamatory or harmful to a real, identifiable person?
+      This is not about topic area (a query about GDPR fines or drug interactions
+      is NOT automatically high-risk) — it's about whether a confident-sounding
+      but potentially wrong answer could cause real harm if acted on directly,
+      or harm a real person's reputation.
 
-    because...
+    RULES
+    - Default to requires_approval=false unless there's a concrete, specific reason.
+    - Broad informational queries about legal/medical/financial topics are NOT
+      automatically high-risk — only flag when the answer would plausibly be
+      used as a substitute for professional advice on a specific personal
+      situation, or names/targets a real identifiable individual.
 
-    what are
+    CRITICAL RULE
 
-    tell me about
+    - Never "helpfully" complete an incomplete query.
+    - Never infer what the user probably intended.
+    - Never rewrite invalid input into a valid research question.
+    If the user did not explicitly communicate a research intent, classify it as INVALID.
 
-    something
+    - When uncertain whether a query is valid, classify it as INVALID.
+    - Do not optimize for helpfulness.
+    - Optimize for preventing wasted research calls.
 
-    continue
+    OUTPUT
+    Return ONLY valid JSON, no markdown, no explanation:
 
-    asdf
+    {{
+      "is_valid": true,
+      "requires_approval": false,
+      "classifier_reason": "classifier_reason should explain exactly WHY the query is invalid or why approval is required.
 
-    lkj
-
-    .....
-
-    Do NOT attempt to rewrite or improve these.
-
-    Do NOT invent a topic.
-
-    Return is_valid=false.
-
-    Valid examples: any complete question or research request, even if broad,
-    informal, or imperfectly phrased — completeness of thought matters, not
-    grammar or formality.
-
-  2. APPROVAL REQUIREMENT: Would a well-evidenced research report answering this
-    query, if taken at face value by the user, risk being relied upon as
-    authoritative legal, medical, or financial advice for a real decision —
-    OR could the answer be defamatory or harmful to a real, identifiable person?
-    This is not about topic area (a query about GDPR fines or drug interactions
-    is NOT automatically high-risk) — it's about whether a confident-sounding
-    but potentially wrong answer could cause real harm if acted on directly,
-    or harm a real person's reputation.
-
-  RULES
-  - Default to requires_approval=false unless there's a concrete, specific reason.
-  - Broad informational queries about legal/medical/financial topics are NOT
-    automatically high-risk — only flag when the answer would plausibly be
-    used as a substitute for professional advice on a specific personal
-    situation, or names/targets a real identifiable individual.
-
-  OUTPUT
-  Return ONLY valid JSON, no markdown, no explanation:
-
-  {{
-    "is_valid": True,
-    "requires_approval": False,
-    "classifier_reason": "one concise sentence explaining the verdict"
-  }}
-"""
+      Examples:
+      "The query contains only punctuation."
+      "The input is random gibberish."
+      "The request is incomplete."
+      "The request seeks individualized legal advice."
+      "The request appears defamatory toward a real person.""
+    }}
+  """
   
   response = llm.invoke([HumanMessage(content=query_classifier_prompt)])
   raw_content = response.content.strip()
@@ -182,10 +191,13 @@ def query_classifier_agent(state: AgentsState):
 
   if not is_valid:
     next_step = "end"
+    termination_reason = "Query is incomplete or malformed. Please provide a clearer research request."
   elif requires_approval:
     next_step = "human_approval"
+    termination_reason = ""
   else:
     next_step = "researcher"
+    termination_reason = ""
 
   agent_message = f"""
     🚦 Query Classifier completed {"with PARSE FAILURE — defaulted to proceed" if parse_failed else "successfully"}.
@@ -199,6 +211,7 @@ def query_classifier_agent(state: AgentsState):
   return {
     "messages": [AIMessage(content=agent_message)],
     "is_valid": is_valid,
+    "termination_reason": termination_reason,
     "requires_approval": requires_approval,
     "classifier_reason": classifier_reason,
     "route": next_step

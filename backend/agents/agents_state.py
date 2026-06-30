@@ -2,7 +2,6 @@ from typing import TypedDict, Annotated
 from langgraph.graph.message import add_messages
 from config.retry_feedback import RetryFeedback
 
-
 class AgentsState(TypedDict):
   original_query: str
   query: str

@@ -10,6 +10,8 @@ class AgentsState(TypedDict):
   requires_approval: bool
   classifier_reason: str
   approval_status: str
+  approval_history: list[dict]
+  termination_reason: str
   messages: Annotated[list, add_messages]
   search_results: list[dict] 
   retry_history: list[RetryFeedback]

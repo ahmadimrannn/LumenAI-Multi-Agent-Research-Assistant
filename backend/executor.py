@@ -72,8 +72,8 @@ def build_graph():
 
 graph = build_graph()
 
-def graph_executor(query: str):
-    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+def graph_executor(query: str, thread_id: str):
+    config = {"configurable": {"thread_id": thread_id}}
 
     initial_state = {
         "query": query,
@@ -81,6 +81,8 @@ def graph_executor(query: str):
         "is_valid": True,
         "requires_approval": False,
         "approval_status": "",
+        "approval_history": [],
+        "termination_reason": "",
         "classifier_reason": "",
         "retry_history": [],
         "findings": "",
@@ -98,14 +100,14 @@ def graph_executor(query: str):
     if "__interrupt__" in result:
         return {
             "status": "interrupted",
-            "interrupt": result['__interrupt__'],
-            "graph": graph,
-            "config": config
+            "interrupt": result['__interrupt__'][0].value,
+            "thread_id": thread_id
         }
     
     return {
         "status": "completed",
         "response": result["findings"],
+        "termination_reason": result.get("termination_reason", ""),
         "messages": result["messages"],
         "search_results": result["search_results"],
         "raw_search_results": result["raw_search_results"],
@@ -116,11 +118,14 @@ def graph_executor(query: str):
     }
 
 def resume_graph(
-        graph,
-        config,
+        thread_id: str,
         action: str,
         edited_query: str | None = None
 ):
+    
+    config = {"configurable": {
+        "thread_id": thread_id
+    }}
     
     resume_payload = {
         "action": action
@@ -134,18 +139,19 @@ def resume_graph(
         config=config
     )
 
+
     if "__interrupt__" in result:
         return {
             "status": "interrupted",
-            "interrupt": result['__interrupt__'],
-            "graph": graph,
-            "config": config
+            "interrupt": result['__interrupt__'][0].value,
+            "thread_id": thread_id
         }
     
     return {
         "status": "completed",
         "response": result["findings"],
         "messages": result["messages"],
+        "termination_reason": result.get("termination_reason", ""),
         "search_results": result["search_results"],
         "raw_search_results": result["raw_search_results"],
         "evidence_extracted": result["evidence_extracted"],
@@ -156,29 +162,42 @@ def resume_graph(
 
 if __name__=="__main__":
 
-    output = graph_executor("What are")
+    thread_id = str(uuid.uuid4())
 
-    if output["status"] == "completed":
-        print(f"Response: {output['response']}")
-        print(f"Log Messages: {output['messages']}")
+    output = graph_executor("Should I sue my employer?", thread_id)
 
-    elif output['status'] == "interrupted":
+    result = output
+    while result['status'] == "interrupted":
         print("Execution stopped because of human approval")
 
-        interrupt = output['interrupt'][0].value
+        interrupt = result['interrupt']
         print("Interrupt:", interrupt)
+    
+        while True:
+            choice = input(
+                "\n Choose from one of the following options (approve, reject, edit): " 
+            ).strip().lower()
 
-        choice = input(
-            "\n Choose from one of the following options: (approve, reject, edit)" 
-        ).strip().lower()
+            if choice in {"approve", "reject", "edit"}:
+                break
+
+            print("Invalid Choice")
 
         edited_query = None
         if choice == "edit":
-            edited_query = input("Enter new query: ")
+            edited_query = input("Enter new query: ").strip()
         
-        final = resume_graph(
-            graph=output['graph'],
-            config=output['config'],
+        result = resume_graph(
+            thread_id=result['thread_id'],
             action=choice,
             edited_query=edited_query
         )
+
+
+    if result["termination_reason"]:
+        print("Workflow Terminated.")
+        print("Reason:", result["termination_reason"])
+    else:
+        print("Workflow completed successfully.")
+        print(f"Response: {result['response']}")
+    print(f"Agent Messages: {result['messages']}")

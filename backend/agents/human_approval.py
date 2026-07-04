@@ -74,7 +74,7 @@ def human_approval_agent(state: AgentsState):
       "route": next_route,
       "original_query": edited_query,
       "query": edited_query,
-      "messages": [AIMessage(content=f"Human rejected the query. New edited query: {edited_query}.  Next Agent -> Query Classifier")],
+      "messages": [AIMessage(content=f"Human chose to rewrite the query. New edited query: {edited_query}.  Next Agent -> Query Classifier")],
       "approval_history": history
     }
   

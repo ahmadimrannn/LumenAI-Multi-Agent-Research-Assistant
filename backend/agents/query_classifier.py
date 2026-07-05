@@ -74,103 +74,184 @@ def query_classifier_agent(state: AgentsState):
     }
 
   query_classifier_prompt = f"""
-    You are a Query Intake Classifier for a research assistant. You do not answer
-    the query. You only assess it before research begins.
+    You are a Query Intake Classifier for a research assistant.
+
+    You NEVER answer the user's query.
+
+    Your job is ONLY to determine:
+
+    1. Whether the query is valid.
+    2. Whether it requires human approval.
+    3. Whether it requires a full external research workflow.
 
     QUERY
+
     {query}
 
-    ASSESS TWO THINGS:
+    ------------------------------------------------------------
+    ASSESSMENT 1 — VALIDITY
+    ------------------------------------------------------------
 
-    1. VALIDITY: Is this query complete and well-formed enough to research?
-        Determine whether this input is sufficiently complete and meaningful to begin a research pipeline.
-      An INVALID query includes (but is not limited to):
+    Determine whether this input is sufficiently complete and meaningful to process.
 
-      • Empty input
-      • Only whitespace
-      • Only punctuation
-      • Only emojis
-      • Random keyboard smashing
-      • Gibberish
-      • Random characters
-      • Repeated symbols
-      • Truncated thoughts
-      • Extremely ambiguous fragments
-      • A single unrelated word
-      • Inputs requiring you to guess the user's intent
+    An INVALID query includes (but is not limited to):
 
-      Examples of INVALID input:
-      .....
-      ...
-      ???
-      !!!!
-      ,,,,,
-      ------
-      _____
-      akljdflkaieuriueroeri
-      jdkjfe9893>?>jikfdfjh>?<>
-      😀😀😀😀😀
-      apple
-      because...
-      what are
-      tell me about
-      something
-      continue
-      asdf
-      lkj
-      .....
+    • Empty input
+    • Only whitespace
+    • Only punctuation
+    • Only emojis
+    • Random keyboard smashing
+    • Gibberish
+    • Random characters
+    • Repeated symbols
+    • Truncated thoughts
+    • Extremely ambiguous fragments
+    • A single unrelated word
+    • Inputs requiring you to guess the user's intent
 
-      Do NOT attempt to rewrite or improve these.
+    Examples of INVALID input:
 
-      Do NOT invent a topic.
+    .....
+    ...
+    ???
+    !!!!
+    ,,,,,
+    ------
+    _____
+    akljdflkaieuriueroeri
+    jdkjfe9893>?>jikfdfjh>?<>
+    😀😀😀😀😀
+    apple
+    because...
+    what are
+    tell me about
+    something
+    continue
+    asdf
+    lkj
 
-      Return is_valid=false.
+    Do NOT rewrite the query.
 
-      Valid examples: any complete question or research request, even if broad,
-      informal, or imperfectly phrased — completeness of thought matters, not
-      grammar or formality.
+    Do NOT infer the user's intended meaning.
 
-    2. APPROVAL REQUIREMENT: Would a well-evidenced research report answering this
-      query, if taken at face value by the user, risk being relied upon as
-      authoritative legal, medical, or financial advice for a real decision —
-      OR could the answer be defamatory or harmful to a real, identifiable person?
-      This is not about topic area (a query about GDPR fines or drug interactions
-      is NOT automatically high-risk) — it's about whether a confident-sounding
-      but potentially wrong answer could cause real harm if acted on directly,
-      or harm a real person's reputation.
+    Do NOT invent missing information.
 
-    RULES
-    - Default to requires_approval=false unless there's a concrete, specific reason.
-    - Broad informational queries about legal/medical/financial topics are NOT
-      automatically high-risk — only flag when the answer would plausibly be
-      used as a substitute for professional advice on a specific personal
-      situation, or names/targets a real identifiable individual.
+    If you are uncertain whether the query is complete, classify it as INVALID.
 
-    CRITICAL RULE
+    ------------------------------------------------------------
+    ASSESSMENT 2 — APPROVAL REQUIREMENT
+    ------------------------------------------------------------
 
-    - Never "helpfully" complete an incomplete query.
-    - Never infer what the user probably intended.
-    - Never rewrite invalid input into a valid research question.
-    If the user did not explicitly communicate a research intent, classify it as INVALID.
+    Determine whether answering this request with a research report could reasonably
+    be relied upon as authoritative legal, medical, or financial advice for a real
+    decision, OR whether the request could be defamatory toward a real identifiable
+    person.
 
-    - When uncertain whether a query is valid, classify it as INVALID.
-    - Do not optimize for helpfulness.
-    - Optimize for preventing wasted research calls.
+    Broad educational questions do NOT require approval.
 
+    Examples requiring approval:
+
+    • Should I stop taking my heart medication?
+    • How should I invest my retirement savings?
+    • Can I sue my employer over this situation?
+    • Prove John Smith committed fraud.
+
+    Examples NOT requiring approval:
+
+    • Explain insulin.
+    • Explain copyright law.
+    • Explain mortgages.
+    • Explain GDPR.
+
+    Default to requires_approval=false unless there is a concrete reason.
+
+    ------------------------------------------------------------
+    ASSESSMENT 3 — EXTERNAL RESEARCH REQUIREMENT
+    ------------------------------------------------------------
+
+    Determine whether answering this query requires gathering or verifying information
+    from external sources.
+
+    Return requires_research=true whenever ANY of the following apply:
+
+    • Current or recent information is needed.
+    • The answer depends on facts that may have changed over time.
+    • Web search would improve accuracy.
+    • Multiple external sources should be compared.
+    • Evidence or citations are expected.
+    • Company, market, product, industry, government, regulatory, or financial research is requested.
+    • Academic literature review is requested.
+    • Trend analysis is requested.
+    • Fact verification is needed.
+    • Statistics are requested.
+    • Comparative analysis requires external evidence.
+    • You are uncertain whether internal knowledge alone is sufficient.
+
+    Examples requiring research:
+
+    • Latest NVIDIA earnings
+    • Compare GPT-5.5 with Claude
+    • Current AI startup landscape
+    • Research semiconductor industry trends
+    • Recent advances in agentic AI
+    • Analyze Apple's financial performance
+    • Compare cloud providers in 2026
+
+    Return requires_research=false ONLY when ALL of the following are true:
+
+    • The answer is based on stable, well-established knowledge.
+    • The answer is primarily explanatory or educational.
+    • The answer does NOT require current information.
+    • External verification is unnecessary.
+    • No web search is needed.
+    • No citations or evidence are expected.
+
+    Examples NOT requiring research:
+
+    • What is machine learning?
+    • Explain recursion.
+    • What is TCP/IP?
+    • Explain LangGraph.
+    • What is reinforcement learning?
+    • Explain binary search trees.
+    • Explain operating systems.
+    • What is the CAP theorem?
+
+    When uncertain, choose requires_research=true.
+
+    ------------------------------------------------------------
+    CRITICAL RULES
+    ------------------------------------------------------------
+
+    Never answer the user's query.
+
+    Never rewrite it.
+
+    Never improve it.
+
+    Never infer missing intent.
+
+    Never invent missing information.
+
+    Optimize for preventing unnecessary research while NEVER skipping research when external evidence could improve correctness.
+
+    ------------------------------------------------------------
     OUTPUT
-    Return ONLY valid JSON, no markdown, no explanation:
+    ------------------------------------------------------------
+
+    Return ONLY valid JSON.
+
+    Do NOT use markdown.
+
+    Do NOT include explanations outside the JSON.
+
+    Return exactly this schema:
 
     {{
-      "is_valid": true,
-      "requires_approval": false,
-      "classifier_reason": "classifier_reason should explain exactly WHY the query is invalid or why approval is required.
-
-      Examples:
-      "The query contains only punctuation."
-      "The input is random gibberish."
-      "The request is incomplete."
-      "The request seeks individualized legal advice."
-      "The request appears defamatory toward a real person.""
+        "is_valid": true,
+        "requires_approval": false,
+        "requires_external_research": true,
+        "classifier_reason": "A concise explanation of the classification."
     }}
   """
   
@@ -182,10 +263,11 @@ def query_classifier_agent(state: AgentsState):
     verdict = json.loads(raw_content)
     is_valid = bool(verdict.get('is_valid', True))
     requires_approval = bool(verdict.get("requires_approval", False))
+    requires_external_research = bool(verdict.get("requires_external_research", True))
     classifier_reason = verdict.get("classifier_reason")
     parse_failed = False
   except:
-    is_valid, requires_approval, classifier_reason = True, False, ""
+    is_valid, requires_approval, requires_external_research, classifier_reason = True, False, True, ""
     parse_failed = True
 
 
@@ -194,6 +276,9 @@ def query_classifier_agent(state: AgentsState):
     termination_reason = "Query is incomplete or malformed. Please provide a clearer research request."
   elif requires_approval:
     next_step = "human_approval"
+    termination_reason = ""
+  elif not requires_external_research:
+    next_step = "direct_knowledge_agent"
     termination_reason = ""
   else:
     next_step = "researcher"
@@ -204,6 +289,7 @@ def query_classifier_agent(state: AgentsState):
 
     Valid: {is_valid}
     Requires Approval: {requires_approval}
+    Requires External Research: {requires_external_research}
     Reason: {classifier_reason}
     Next → {next_step}
   """
@@ -213,6 +299,7 @@ def query_classifier_agent(state: AgentsState):
     "is_valid": is_valid,
     "termination_reason": termination_reason,
     "requires_approval": requires_approval,
+    "requires_external_research": requires_external_research,
     "classifier_reason": classifier_reason,
     "route": next_step
   }

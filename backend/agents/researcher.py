@@ -50,5 +50,6 @@ def researcher_agent(state: AgentsState):
   return {
     "messages": [AIMessage(content=agent_message)],
     "search_results": result,
+    "knowledge_source": "external_knowledge",
     "query": refined_query if len(retry_history) > 0 else query # Update the query state with the latest query if the length of retry history > 0, otherwise keep the old query in the query state
   }

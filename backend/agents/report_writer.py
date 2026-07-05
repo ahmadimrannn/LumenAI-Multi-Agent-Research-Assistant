@@ -10,10 +10,14 @@ def report_writer_agent(state: AgentsState):
 
   query = state['query']
   print("Query:", query)
-  conflicts_analysis = state['conflicts_analysis']
-  evidence_extracted = state['evidence_extracted']
-  search_results = state['search_results']
-  degraded = state['degraded']
+
+  knowledge_source = state.get("knowledge_source")
+  knowledge_content = state.get("knowledge_content", "")
+  print("Knowledge Content", knowledge_content)
+  conflicts_analysis = state.get("conflicts_analysis", "")
+  evidence_extracted = state.get("evidence_extracted", "")
+  search_results = state.get("search_results", [])
+  degraded = state.get("degraded", False)
 
   degraded_block = (
     "[INTERNAL INSTRUCTION — DO NOT QUOTE OR REPEAT ANY PART OF THIS BLOCK IN YOUR OUTPUT]\n"
@@ -29,305 +33,152 @@ def report_writer_agent(state: AgentsState):
   )
 
   report_writer_prompt = f"""
-  {degraded_block}
+    {degraded_block}
 
-  You are a Senior Research Report Writer.
+    You are the Senior Report Writer for a multi-agent research assistant.
 
-Your ONLY responsibility is to transform the provided structured evidence into a comprehensive research report.
-The evidence has already been extracted.
-The conflict analysis has already been completed.
-Do NOT perform additional research.
-Do NOT use outside knowledge.
-Do NOT invent facts.
-Do NOT infer facts that are unsupported by the evidence.
+    Your ONLY responsibility is to transform the supplied knowledge into a
+    comprehensive, professional research report.
 
---------------------------------------------------
-USER QUERY
---------------------------------------------------
+    The knowledge may come from: 1. external_research 2. internal_knowledge
 
-{query}
+    Do NOT perform additional research. Do NOT introduce facts not present
+    in the supplied knowledge.
 
---------------------------------------------------
-STRUCTURED EVIDENCE
---------------------------------------------------
+      --------------------------------------------------
+      USER QUERY
+      --------------------------------------------------
+      {query}
 
-{evidence_extracted}
+      --------------------------------------------------
 
---------------------------------------------------
-CONFLICT ANALYSIS
---------------------------------------------------
+    KNOWLEDGE SOURCE
 
-{conflicts_analysis}
+    {knowledge_source}
 
---------------------------------------------------
-YOUR RESPONSIBILITY
---------------------------------------------------
+      --------------------------------------------------
+      KNOWLEDGE CONTENT
+      --------------------------------------------------
+      {knowledge_content}
 
-Transform the structured evidence into a professional research document.
-Your objective is NOT to summarize.
-Your objective is to explain.
-Assume the reader has never seen the evidence.
-Every important piece of evidence should be explained with sufficient context.
+      --------------------------------------------------
 
-***Must Follow Requirements***:
-  - Your mission is to create a 1100-1300 words minimum report.
-  - I don't want you to just throw misinformation to complete that 1100-1300 words count requirement.
-  - Instead, by utilizing the evidences, and the related evidence information you have, explain the topics given in the evidence enough to reach that 1200+ words count.
-  - Explain every heading in full detail so that every paragraph looks bigger but only include relevant information.
+    CONFLICT ANALYSIS
 
---------------------------------------------------
-INTERNAL PLANNING
---------------------------------------------------
+    {conflicts_analysis}
 
-Before writing the report, internally complete the following process.
-Do NOT output these steps.
-1. Read every evidence object.
-2. Identify every major topic supported by the evidence.
-3. Group evidence belonging to the same topic.
-4. Determine the most logical report structure.
-5. Decide which evidence belongs inside each section.
-Only after this planning process should the report be written.
+    If knowledge_source == “internal_knowledge”, this section may be empty.
+    Never invent conflicts.
 
---------------------------------------------------
-REPORT ORGANIZATION
---------------------------------------------------
+      --------------------------------------------------
+      YOUR RESPONSIBILITY
+      --------------------------------------------------
+      Transform the supplied knowledge into a
+      professional report. Explain rather than
+      summarize. Assume the reader has never seen the
+      supplied knowledge. Explain every important point
+      with sufficient context.
 
-Create section headings dynamically.
-The structure MUST emerge naturally from the evidence.
-Possible sections include (only if supported):
+      --------------------------------------------------
+    
+    EVIDENCE EXTRACTED
 
-• Executive Summary (Explain this in full detail)
-• Background (Explain this in full detail)
-• Historical Context (Explain this in full detail)
-• Current Situation (Explain this in full detail)
-• Key Findings (Explain this in full detail)
-• Timeline (Explain this in full detail)
-• Technical Explanation (Explain this in full detail)
-• Methodology (Explain this in full detail)
-• Comparative Analysis (Explain this in full detail)
-• Performance Analysis (Explain this in full detail)
-• Market Analysis (Explain this in full detail)
-• Regulatory Landscape (Explain this in full detail)
-• Opportunities (Explain this in full detail)
-• Risks (Explain this in full detail)
-• Challenges (Explain this in full detail)
-• Limitations 
-• Conflicting Evidence (Explain this in full detail)
-• Missing Information 
-• Conclusion (Explain this in full detail)
+    {evidence_extracted}
 
-These are examples only.
-Never force a section that is unsupported.
+    If knowledge_source == “internal_knowledge”, this section may be empty.
+    Never invent conflicts.
 
---------------------------------------------------
-EVIDENCE UTILIZATION
---------------------------------------------------
-Your goal is to use ALL relevant evidence.
-For every major topic:
-Expand it thoroughly.
-Include every relevant
+      --------------------------------------------------
+      YOUR RESPONSIBILITY
+      --------------------------------------------------
+      Transform the supplied knowledge into a
+      professional report. Explain rather than
+      summarize. Assume the reader has never seen the
+      supplied knowledge. Explain every important point
+      with sufficient context.
 
-- fact
-- statistic
-- event
-- claim
-- quotation
-- date
-- entity
-- organization
-- relationship
-- limitation
+      --------------------------------------------------
 
-Do not merely list information.
+    MANDATORY LENGTH
 
-Explain it.
+    Produce approximately 1500-3000 words whenever supported by the supplied
+    knowledge. Never add filler. Expand only using supplied knowledge.
 
-When numerical evidence exists
-(financial values, percentages, measurements,
-benchmarks, counts, performance metrics,
-dates or timelines),
+      --------------------------------------------------
+      INTERNAL PLANNING
+      --------------------------------------------------
+      Read all supplied knowledge. Identify major
+      topics. Group related information. Determine the
+      best report structure. Do not output these
+      planning steps.
 
-explain
+      --------------------------------------------------
 
-- what it represents
-- why it matters
-- how it relates to the user's question
-- which evidence supports it
+    REPORT ORGANIZATION
 
-Whenever multiple pieces of evidence discuss the same topic,
-combine them into a coherent explanation.
-Do NOT repeat identical information.
-Instead, merge related evidence naturally.
+    Create dynamic headings. Possible sections: Executive Summary Background
+    Historical Context Current Situation Technical Explanation Architecture
+    Workflow Methodology Key Findings Comparative Analysis Performance
+    Analysis Market Analysis Regulatory Landscape Opportunities Risks
+    Challenges Limitations Applications Examples Conflicting Evidence
+    Missing Information Conclusion
 
---------------------------------------------------
-REPORT DEPTH
---------------------------------------------------
+    Only include supported sections.
 
-This is a research document.
-Not an executive summary.
-Not a bullet-point list.
-Every important topic should be explained thoroughly.
-Do not compress multiple independent findings into one sentence.
-Whenever sufficient evidence exists,
-write multiple paragraphs.
+      --------------------------------------------------
+      KNOWLEDGE UTILIZATION
+      --------------------------------------------------
+      Use ALL supplied knowledge. Explain concepts,
+      facts, statistics, dates, events, organizations,
+      relationships, terminology and technical details.
+      Merge related information naturally. Avoid
+      repetition.
 
-Explain
+      --------------------------------------------------
 
-- what happened
-- why it matters
-- who was involved
-- supporting evidence
-- chronology when available
-The report should feel educational rather than condensed.
+    SOURCE-SPECIFIC BEHAVIOR
 
---------------------------------------------------
-CONFLICT HANDLING
---------------------------------------------------
+    If knowledge_source == “external_research”: - Use supplied conflict
+    analysis and evidence extracted. - Include Conflicting Evidence only when applicable. - Include
+    Missing Information only when supplied. - Respect degraded status. -
+    Never invent evidence. Only use the evidence extracted from {evidence_extracted}
 
-Use the supplied conflict analysis.
-If conflicts exist,
-create a dedicated section called
-"Conflicting Evidence"
+    If knowledge_source == “internal_knowledge”: - Treat the knowledge
+    package as the complete factual basis. - Do not invent citations. - Do
+    not invent conflicts. - Do not invent missing information. - Do not
+    mention degraded status.
 
-For EACH conflict
-include
+      --------------------------------------------------
+      DEPTH
+      --------------------------------------------------
+      Explain why every important fact matters. Explain
+      numerical information. Prefer multiple
+      well-developed paragraphs.
 
-- subject
-- metric
-- every reported value
-- supporting sources
-- dates when available
-- possible explanation if provided
-Never silently choose one value.
-If no conflict exists,
-do not create this section.
+      --------------------------------------------------
 
---------------------------------------------------
-CONSISTENT INFORMATION
---------------------------------------------------
+    CONFIDENCE
 
-When multiple independent sources support the same finding,
-state that the evidence is corroborated.
-Mention the supporting source indices.
+    Only for external_research: Use Evidence Status: {"DEGRADED" if degraded
+    else "OK"} If degraded, begin with a Confidence Note. Never include this
+    for internal knowledge.
 
---------------------------------------------------
-COMPLEMENTARY INFORMATION
---------------------------------------------------
+      --------------------------------------------------
+      FINAL OUTPUT
+      --------------------------------------------------
+      Return ONLY the final report. No reasoning. No
+      JSON. No code fences.
 
-Use complementary information to enrich nearby sections.
-Do not isolate it unless necessary.
+      --------------------------------------------------
 
---------------------------------------------------
-MISSING INFORMATION
---------------------------------------------------
+    SELF-CHECK
 
-If the conflict analysis contains missing_information,
-create a section titled
-"Missing Information"
-Explain exactly what information could not be found.
-Never fabricate it.
-
---------------------------------------------------
-LIMITATIONS
---------------------------------------------------
-
-Mention source limitations only when they materially affect interpretation.
-Do not create unnecessary disclaimers.
-
---------------------------------------------------
-CONFIDENCE
---------------------------------------------------
-Evidence Status:
-
-{"DEGRADED" if degraded else "OK"}
-If evidence is degraded,
-begin the report with a short Confidence Note explaining that completeness may be affected.
-If evidence status is OK,
-do not include a confidence note.
-
---------------------------------------------------
-FINAL OUTPUT
---------------------------------------------------
-Return ONLY the final report.
-Do not output your reasoning.
-Do not output JSON.
-Do not output markdown code fences.
---------------------------------------------------
-REPORT DEPTH REQUIREMENTS (MANDATORY)
---------------------------------------------------
-This is a research report, NOT an executive summary.
-
-***Must Follow Requirements***:
-  - Your mission is to create a 1100-1300 words minimum report.
-  - I don't want you to just throw misinformation to complete that 1100-1300 words count requirement.
-  - Instead, by utilizing the evidences, and the related evidence information you have, explain the topics given in the evidence enough to reach that 1200+ words count.
-
-Your objective is to exhaustively communicate every relevant piece of evidence.
-Assume the reader wants every important fact contained in the evidence.
-Do NOT optimize for brevity.
-Do NOT write a condensed overview.
-
-For every major topic:
-
-• Explain the topic before presenting numbers.
-• Present every relevant statistic.
-• Present every relevant date.
-• Present every relevant event.
-• Present every relevant company, organization and person involved.
-• Explain why the information matters whenever the evidence supports doing so.
-• Include supporting context from multiple sources.
-• Integrate complementary evidence instead of omitting it.
-
-Never mention only the largest statistic if multiple statistics exist.
-Never mention only the newest event if historical context exists.
-If multiple sources discuss the same subject but contribute different details,
-combine those details into one comprehensive explanation.
-If a source contains unique information that no other source contains,
-that information MUST appear somewhere in the report.
-No relevant source should disappear simply because another source contains similar information.
-
---------------------------------------------------
-SOURCE UTILIZATION REQUIREMENTS
---------------------------------------------------
-
-Your goal is maximum evidence coverage.
-Before finishing the report, mentally verify that every source contributed at least one fact unless it was completely irrelevant.
-For every source ask:
-"What information exists here that has not yet appeared in the report?"
-Continue expanding the report until every relevant source has been incorporated.
-Never ignore a source simply because another source says something similar.
-
---------------------------------------------------
-REPORT LENGTH REQUIREMENTS (MANDATORY)
---------------------------------------------------
-
-This report should resemble professional analyst research.
-It should be substantially more detailed than a normal LLM response.
-Produce approximately 1,500–3,000 words whenever the available evidence supports that level of detail.
-Never intentionally shorten the report.
-If sufficient evidence exists, prefer longer explanations over short summaries.
-Each major section should contain multiple well-developed paragraphs rather than a single paragraph.
-Do not merge several independent findings into one paragraph.
-If the report can be expanded using evidence that has not yet been discussed, continue writing.
-Only stop when nearly every relevant fact extracted from the evidence has been incorporated.
-
---------------------------------------------------
-SELF-CHECK BEFORE RETURNING
---------------------------------------------------
-Before producing the final answer, verify the following:
-
-✓ Every source has been examined.
-✓ Every important statistic appears in the report.
-✓ Every important event appears in the report.
-✓ Every important company, organization, person and product appears where relevant.
-✓ Every conflict identified in the conflict analysis is explicitly discussed.
-✓ Every complementary fact has been incorporated.
-✓ Missing information has been explicitly mentioned.
-✓ The report prioritizes completeness over brevity.
-✓ If evidence status was DEGRADED, the report begins with a Confidence Note as the first line of output — verify this BEFORE checking anything else below.
-
-If any item is missing, revise the report before returning it.
+    Verify every important fact has been incorporated. Verify no unsupported
+    facts were introduced. Verify report prioritizes completeness over
+    brevity. Verify external-only sections do not appear for internal
+    knowledge.
   """
+
 
   report_writer_llm_response = llm.invoke([HumanMessage(content=report_writer_prompt)])
   findings = report_writer_llm_response.content

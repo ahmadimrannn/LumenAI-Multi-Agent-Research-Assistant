@@ -8,6 +8,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from agents.agents_state import AgentsState
 from agents.query_classifier import query_classifier_agent
+from agents.direct_knowledge_agent import direct_knowledge_agent
 from agents.human_approval import human_approval_agent
 from agents.researcher import researcher_agent
 from agents.supervisor import supervisor_agent
@@ -25,6 +26,7 @@ def build_graph():
 
     graph_builder.add_node("query_classifier", query_classifier_agent)
     graph_builder.add_node("human_approval", human_approval_agent)
+    graph_builder.add_node("direct_knowledge_agent", direct_knowledge_agent)
     graph_builder.add_node('researcher', researcher_agent)
     graph_builder.add_node('supervisor', supervisor_agent)
     graph_builder.add_node('source_critic', source_critic_agent)
@@ -39,7 +41,16 @@ def build_graph():
         {
             "researcher": "researcher",
             "human_approval": "human_approval",
+            "direct_knowledge_agent": "direct_knowledge_agent",
             "end": END
+        }
+    )
+    graph_builder.add_conditional_edges(
+        "direct_knowledge_agent",
+        select_route,
+        {
+            "report_writer": "report_writer",
+            "researcher": "researcher"
         }
     )
     graph_builder.add_conditional_edges(
@@ -84,6 +95,9 @@ def graph_executor(query: str, thread_id: str):
         "approval_history": [],
         "termination_reason": "",
         "classifier_reason": "",
+        "requires_external_research": True,
+        "knowledge_source": "",
+        "knowledge_content": "",
         "retry_history": [],
         "findings": "",
         "search_results": [],
@@ -107,6 +121,8 @@ def graph_executor(query: str, thread_id: str):
     return {
         "status": "completed",
         "response": result["findings"],
+        "requires_external_research": result["requires_external_research"],
+        "knowledge_source": result["knowledge_source"],
         "termination_reason": result.get("termination_reason", ""),
         "messages": result["messages"],
         "search_results": result["search_results"],
@@ -150,6 +166,8 @@ def resume_graph(
     return {
         "status": "completed",
         "response": result["findings"],
+        "requires_external_research": result["requires_external_research"],
+        "knowledge_source": result["knowledge_source"],
         "messages": result["messages"],
         "termination_reason": result.get("termination_reason", ""),
         "search_results": result["search_results"],
@@ -164,7 +182,7 @@ if __name__=="__main__":
 
     thread_id = str(uuid.uuid4())
 
-    output = graph_executor("Should I sue my employer?", thread_id)
+    output = graph_executor("Explain the adoption of machine learning in various industries.", thread_id)
 
     result = output
     while result['status'] == "interrupted":
@@ -200,4 +218,6 @@ if __name__=="__main__":
     else:
         print("Workflow completed successfully.")
         print(f"Response: {result['response']}")
+        print("Knowledge Source:", result["knowledge_source"])
+        print("Requires research:", result["requires_external_research"])
     print(f"Agent Messages: {result['messages']}")

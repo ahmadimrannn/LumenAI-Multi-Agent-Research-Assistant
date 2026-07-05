@@ -7,6 +7,9 @@ class AgentsState(TypedDict):
   query: str
   is_valid: bool
   requires_approval: bool
+  requires_external_research: bool
+  knowledge_source: str
+  knowledge_content: str
   classifier_reason: str
   approval_status: str
   approval_history: list[dict]

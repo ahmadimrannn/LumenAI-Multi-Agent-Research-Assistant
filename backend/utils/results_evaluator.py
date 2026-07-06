@@ -4,7 +4,7 @@ from agents.agents_state import AgentsState
 def evaluate_results(state: AgentsState) -> tuple[bool, str, dict]: # is_thin_content => bool, reason => str, failed_metric => dict
   """Returns (is_thin_content, reason, failed metric) from the search results"""
 
-  results = state['search_results']
+  results = state.get('search_results', [])
 
   if len(results) < MIN_RESULTS_COUNT:
     return True, "low_result_count", {"result_count": len(results), "threshold": MIN_RESULTS_COUNT}

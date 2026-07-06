@@ -229,6 +229,8 @@ def direct_knowledge_agent(state: AgentsState):
     Next -> Report Writer
   """
 
+  print("Direct Knowledge Agent Done ✅")
+
   return {
     "messages": [AIMessage(content=agent_message)],
     "knowledge_content": package,

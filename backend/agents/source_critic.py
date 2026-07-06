@@ -7,7 +7,7 @@ import re
 def source_critic_agent(state: AgentsState):
   """Judges raw tavily search results for substantive content vs. spam/low-value sources BEFORE evidence_extraction. Filters search_results down to filtered_search_results."""
 
-  original_query = state['original_query']
+  original_query = state.get('original_query', "")
   search_results = state['search_results']
 
   source_critic_prompt = f"""
@@ -110,6 +110,9 @@ def source_critic_agent(state: AgentsState):
     Sources Discarded: {discarded_count}
     Next Agent → Evidence Extractor
     """
+  
+  print("Source Critic Done ✅")
+
   
   return {
      "messages": [AIMessage(content=agent_message)],

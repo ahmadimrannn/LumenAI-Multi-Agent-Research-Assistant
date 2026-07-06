@@ -209,6 +209,9 @@ def report_writer_agent(state: AgentsState):
 
     Next Agent → END
   """
+
+  print("Report Writer Done ✅")
+
   return {
     "messages": [AIMessage(content=agent_message)],
     "findings": findings,

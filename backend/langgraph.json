@@ -1,0 +1,7 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "graph": "./executor.py:graph"
+  },
+  "env": "../.env"
+}

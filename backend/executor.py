@@ -1,6 +1,7 @@
 # File for compiling and invoking the graph
 
 import uuid
+from dotenv import load_dotenv
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
@@ -18,6 +19,8 @@ from agents.conflict_detector import conflicts_analysis_agent
 from agents.report_writer import report_writer_agent
 
 from utils.select_route import select_route
+
+load_dotenv()
 
 def build_graph():
     graph_builder = StateGraph(AgentsState)
@@ -182,7 +185,7 @@ if __name__=="__main__":
 
     thread_id = str(uuid.uuid4())
 
-    output = graph_executor("Explain the adoption of machine learning in various industries.", thread_id)
+    output = graph_executor("Current adoption of ai agents in healthcare industry", thread_id)
 
     result = output
     while result['status'] == "interrupted":

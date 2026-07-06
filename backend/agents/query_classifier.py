@@ -293,6 +293,8 @@ def query_classifier_agent(state: AgentsState):
     Reason: {classifier_reason}
     Next → {next_step}
   """
+
+  print("Query Classifier Done ✅")
   
   return {
     "messages": [AIMessage(content=agent_message)],

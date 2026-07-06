@@ -87,8 +87,8 @@ def evidence_extractor_agent(state: AgentsState):
     """Extracts structured evidence from search results, in chunks to stay under
     per-message token limits."""
 
-    original_query = state["original_query"]
-    search_results = state["search_results"]
+    original_query = state.get("original_query", "")
+    search_results = state.get("search_results", [])
 
     CHUNK_SIZE = 5
     all_evidence = []
@@ -112,6 +112,8 @@ def evidence_extractor_agent(state: AgentsState):
     Evidence Objects Extracted: {evidence_count}
     Next Agent → Conflict Detector
     """
+
+    print("Evidence Extractor Done ✅")
 
     return {
         "messages": [AIMessage(content=agent_message)],

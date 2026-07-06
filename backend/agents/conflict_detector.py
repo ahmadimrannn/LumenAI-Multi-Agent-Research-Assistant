@@ -7,8 +7,8 @@ import re
 def conflicts_analysis_agent(state: AgentsState):
   """Compare the extracted evidences to find conflicts between sources."""
 
-  original_query = state['original_query']
-  extracted_evidence = state['evidence_extracted']
+  original_query = state.get('original_query', "")
+  extracted_evidence = state.get('evidence_extracted', [])
 
   json_schema = """
 {
@@ -170,6 +170,9 @@ No additional text.
   Evidence Sources: {evidence_source_count}
   Next Agent → Report Writer
   """
+
+  print("Conflict Detector Done ✅")
+
 
   return {
     "messages": [AIMessage(content=agent_message)],

@@ -11,9 +11,9 @@ def researcher_agent(state: AgentsState):
   """Gets raw tavily search results"""
 
   query = state['query']
-  original_query = state['original_query']
+  original_query = state.get('original_query', "")
 
-  retry_history = state['retry_history']
+  retry_history = state.get('retry_history', [])
 
   if len(retry_history) == 0:
     result = invoke_tavily(query=query)
@@ -45,6 +45,8 @@ def researcher_agent(state: AgentsState):
     result = invoke_tavily(query=refined_query)
 
     agent_message = f"Here are the search results based on the query {refined_query}. \n\n 🔍 Search Results: {result[:2]}"
+
+  print("Researcher Done ✅")
 
 
   return {

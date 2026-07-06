@@ -9,3 +9,4 @@ langchain-tavily
 langchain-groq
 langsmith
 uvicorn
+langgraph-cli[inmem]

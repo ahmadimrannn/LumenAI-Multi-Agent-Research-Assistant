@@ -104,6 +104,19 @@ def evidence_extractor_agent(state: AgentsState):
 
     evidence_count = len(all_evidence)
 
+    extraction_failed = (evidence_count == 0)
+
+    if extraction_failed == True:
+      agent_message = f"""Evidence Extraction failed ❌. No usable evidence extracted. Next Agent -> report_writer"""
+      return {
+      "messages": [AIMessage(content=agent_message)],
+      "extraction_failed": extraction_failed,
+      "evidence_extracted": [],
+      "degraded": True,
+      "next_agent": "report_writer",
+      "route": "report_writer"
+      }
+    
     agent_message = f"""
     🔍 Evidence Extractor completed {"with PARTIAL FAILURE — one or more chunks failed to parse" if any_chunk_failed else "successfully"}.
 
@@ -118,6 +131,7 @@ def evidence_extractor_agent(state: AgentsState):
     return {
         "messages": [AIMessage(content=agent_message)],
         "evidence_extracted": all_evidence,
-        "extraction_failed": any_chunk_failed,
-        "next_agent": "conflict_detector",
+        "extraction_failed": False,
+        "degraded": any_chunk_failed or state.get("degraded", False),
+        "route": "conflicts_analyst",
     }

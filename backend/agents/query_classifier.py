@@ -12,7 +12,7 @@ def query_classifier_agent(state: AgentsState):
   """
 
   query = state['query']
-  query = query.strip()
+  query = query.strip() if query else None
 
 # Empty or whitespace
   if not query:

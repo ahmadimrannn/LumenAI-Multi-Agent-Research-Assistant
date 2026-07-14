@@ -3,6 +3,8 @@
 import uuid
 from dotenv import load_dotenv
 
+from config.database_config import checkpointer
+
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
 from langgraph.checkpoint.memory import MemorySaver
@@ -24,8 +26,6 @@ load_dotenv()
 
 def build_graph():
     graph_builder = StateGraph(AgentsState)
-
-    memory = MemorySaver()
 
     graph_builder.add_node("query_classifier", query_classifier_agent)
     graph_builder.add_node("human_approval", human_approval_agent)
@@ -75,11 +75,18 @@ def build_graph():
         }
     )
     graph_builder.add_edge('source_critic', 'evidence_extractor')
-    graph_builder.add_edge('evidence_extractor', 'conflicts_analyst')
+    graph_builder.add_conditional_edges(
+        "evidence_extractor",
+        select_route,
+        {
+            "conflicts_analyst": "conflicts_analyst",
+            "report_writer": "report_writer"
+        }
+    )
     graph_builder.add_edge('conflicts_analyst', 'report_writer')
     graph_builder.add_edge('report_writer', END)
 
-    graph = graph_builder.compile(checkpointer=memory)
+    graph = graph_builder.compile(checkpointer=checkpointer)
 
     return graph
 
@@ -106,6 +113,7 @@ def graph_executor(query: str, thread_id: str):
         "search_results": [],
         "raw_search_results": [],
         "evidence_extracted": [],
+        "extraction_failed": False,
         "conflicts_analysis": [],
         "messages": [],
         "next_agent": "",
@@ -181,11 +189,20 @@ def resume_graph(
         "retry_history": result["retry_history"],
     }
 
+
 if __name__=="__main__":
+    # ⚠️WARNING: edited_query parameter must be passed in the resume_graph() when the action is edit, otherwise edited_query parameter is not needed to pass as the parameter.
+    # result = resume_graph(thread_id="19b27e4a-e62f-4d7c-abf1-b9f26025b8af", action="edit", edited_query="what is recursion in programming?")
+    # print("Workflow completed successfully.")
+    # print(f"Response: {result['response']}")
+    # print("Knowledge Source:", result["knowledge_source"])
+    # print("Requires research:", result["requires_external_research"])
+    # print(f"Agent Messages: {result['messages']}")
 
     thread_id = str(uuid.uuid4())
+    print("Thread ID:", thread_id)
 
-    output = graph_executor("Current adoption of ai agents in healthcare industry", thread_id)
+    output = graph_executor("What is recursion in programming?", thread_id)
 
     result = output
     while result['status'] == "interrupted":

@@ -10,3 +10,4 @@ langchain-groq
 langsmith
 uvicorn
 langgraph-cli[inmem]
+langgraph-checkpoint-sqlite

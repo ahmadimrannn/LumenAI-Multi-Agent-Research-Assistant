@@ -1,0 +1,6 @@
+id,category,query,passed,failure_type,notes
+dk_01,direct_knowledge,What is recursion in programming?,True,,ok
+dk_02,direct_knowledge,What is the difference between a stack and a queue?,True,,ok
+dk_03,direct_knowledge,Explain what Big-O notation means.,True,,ok
+dk_04,direct_knowledge,What is a REST API?,True,,ok
+dk_05,direct_knowledge,What does HTTP stand for?,True,,ok

@@ -1,4 +1,5 @@
-LLM_MODEL_NAME="meta-llama/llama-4-scout-17b-16e-instruct"
+GROQ_LLM_MODEL_NAME="meta-llama/llama-4-scout-17b-16e-instruct"
+GEMINI_LLM_MODEL_NAME="gemini-3.1-flash-lite"
 MIN_RESULTS_COUNT=3
 MAX_RETRIES=2
 MIN_CONTENT_COUNT=200

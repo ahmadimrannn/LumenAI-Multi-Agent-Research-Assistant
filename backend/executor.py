@@ -202,7 +202,7 @@ if __name__=="__main__":
     thread_id = str(uuid.uuid4())
     print("Thread ID:", thread_id)
 
-    output = graph_executor("What is recursion in programming?", thread_id)
+    output = graph_executor("What is the exact number of atoms in the observable universe according to the latest 2026 measurement?", thread_id)
 
     result = output
     while result['status'] == "interrupted":

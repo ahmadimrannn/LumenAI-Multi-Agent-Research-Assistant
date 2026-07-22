@@ -65,7 +65,7 @@ def source_critic_agent(state: AgentsState):
   """
 
   response = llm.invoke([HumanMessage(content=source_critic_prompt)])
-  raw_content = response.content.strip()
+  raw_content = response.content[0]['text'].strip()
   raw_content = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_content, flags=re.MULTILINE)
 
   try:

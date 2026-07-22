@@ -65,7 +65,7 @@ Return ONLY JSON. No markdown. No explanations.
 """
 
     response = llm.invoke([HumanMessage(content=evidence_extractor_prompt)])
-    raw_content = response.content.strip()
+    raw_content = response.content[0]['text'].strip()
     raw_content = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_content, flags=re.MULTILINE)
 
     try:

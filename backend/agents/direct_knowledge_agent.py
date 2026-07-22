@@ -218,7 +218,7 @@ def direct_knowledge_agent(state: AgentsState):
   """
 
   response = llm.invoke([HumanMessage(content=direct_knowledge_agent_prompt)])
-  package = response.content if response.content else ""
+  package = response.content[0]['text'] if response.content[0]['text'] else ""
 
   agent_message = f"""
     🧠 Direct Knowledge Agent completed.

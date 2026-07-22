@@ -149,7 +149,7 @@ No additional text.
 """
 
   response = llm.invoke([HumanMessage(content=conflict_detector_prompt)])
-  raw_content = response.content.strip()
+  raw_content = response.content[0]['text'].strip()
   raw_content = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_content, flags=re.MULTILINE)
 
   try:

@@ -41,7 +41,7 @@ def researcher_agent(state: AgentsState):
     """
 
     response = llm.invoke([HumanMessage(content=new_query_prompt)])
-    refined_query = response.content
+    refined_query = response.content[0]['text']
     result = invoke_tavily(query=refined_query)
 
     agent_message = f"Here are the search results based on the query {refined_query}. \n\n 🔍 Search Results: {result[:2]}"

@@ -340,7 +340,7 @@ def report_writer_agent(state: AgentsState):
 
 
   report_writer_llm_response = llm.invoke([HumanMessage(content=report_writer_prompt)])
-  findings = report_writer_llm_response.content
+  findings = report_writer_llm_response.content[0]['text']
 
   leak_marker = [
     "MANDATORY FIRST ELEMENT OF YOUR OUTPUT",

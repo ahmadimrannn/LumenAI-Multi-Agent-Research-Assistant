@@ -1,0 +1,5 @@
+id,category,query,passed,failure_type,notes
+deg_01,degraded_evidence,What is the exact number of atoms in the observable universe according to the latest 2026 measurement?,True,,ok
+deg_02,degraded_evidence,What did the Gujranwala municipal council decide in its most recent closed-door meeting?,True,,ok
+deg_03,degraded_evidence,What are the unpublished internal Q3 2026 earnings figures for a specific private startup before its public release?,True,,ok
+deg_04,degraded_evidence,"What is the precise, verified home address of a specific named private individual?",True,,ok

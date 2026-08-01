@@ -86,7 +86,7 @@ def build_graph():
     graph_builder.add_edge('conflicts_analyst', 'report_writer')
     graph_builder.add_edge('report_writer', END)
 
-    graph = graph_builder.compile(checkpointer=checkpointer)
+    graph = graph_builder.compile()
 
     return graph
 
@@ -202,7 +202,7 @@ if __name__=="__main__":
     thread_id = str(uuid.uuid4())
     print("Thread ID:", thread_id)
 
-    output = graph_executor("What is the exact number of atoms in the observable universe according to the latest 2026 measurement?", thread_id)
+    output = graph_executor("Analyze how the 2024 global semiconductor chip supply chain shifts impacted automotive production timelines in Germany through 2025, and summarize the projected outlook for 2026.", thread_id)
 
     result = output
     while result['status'] == "interrupted":

@@ -1,0 +1,9 @@
+id,category,query,passed,failure_type,notes
+rr_01,research_required,What are the newest features released in Python's latest version?,True,,ok
+rr_02,research_required,What checkpointing backends does LangGraph currently support for production use?,True,,ok
+rr_03,research_required,What are common causes of Postgres connection pool exhaustion in production systems?,True,,ok
+rr_04,research_required,What are best practices for handling rate limits when calling the Groq API?,True,,ok
+rr_05,research_required,What is the current going rate for freelance AI agent developers on Upwork?,True,,ok
+rr_06,research_required,What are the compliance requirements for A2P 10DLC registration in the US?,True,,ok
+rr_07,research_required,How will the latest Federal Reserve interest rate decision affect early-stage tech startups?,True,,ok
+rr_08,research_required,What is the exact breakdown of how much venture funding went into agentic AI startups last quarter?,True,,ok

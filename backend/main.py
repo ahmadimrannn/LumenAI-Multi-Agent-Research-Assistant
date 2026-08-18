@@ -4,6 +4,7 @@ from executor import resume_graph
 from pydantic import BaseModel
 from fastapi import HTTPException
 import uuid
+from event_logger import log_event
 
 app = FastAPI()
 
@@ -30,6 +31,11 @@ def get_findings(request: ResearchRequest):
     return response
   
   except Exception as e:
+    log_event(
+      service="lumen", event_type="api_exception", severity="error",
+      node_or_route="/research", message=str(e),
+      context={"query": request.query, "thread_id": thread_id},
+    )
     raise HTTPException(status_code=500, detail=f"Can't fetch results {str(e)}")
   
 @app.post("/research/resume")
@@ -60,6 +66,11 @@ def resume(request: ResumeRequest):
     return result
 
   except Exception as e:
+    log_event(
+      service="lumen", event_type="api_exception", severity="error",
+      node_or_route="/research/resume", message=str(e),
+      context={"thread_id": request.thread_id, "action": request.action},
+    )
     raise HTTPException(
       status_code=400,
       detail=f"Can't fetch results: {str(e)}"

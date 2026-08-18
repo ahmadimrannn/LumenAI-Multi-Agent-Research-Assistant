@@ -12,3 +12,4 @@ uvicorn
 langgraph-cli[inmem]
 langgraph-checkpoint-sqlite
 langchain-google-genai
+psycopg2

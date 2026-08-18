@@ -7,6 +7,7 @@ from event_logger import log_event
 def supervisor_agent(state: AgentsState):
   """Assigns the task to different agents / nodes"""
 
+
   is_thin, reason, failed_metric = evaluate_results(state)
   if not is_thin:
     if reason == "borderline_pass":

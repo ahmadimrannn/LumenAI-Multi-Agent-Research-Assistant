@@ -2,6 +2,7 @@ from agents.agents_state import AgentsState
 from config.retry_feedback import RetryFeedback
 from utils.results_evaluator import evaluate_results
 from config.settings import MAX_RETRIES, EARLY_EXIT_SCORE_THRESHOLD
+from event_logger import log_event
 
 def supervisor_agent(state: AgentsState):
   """Assigns the task to different agents / nodes"""
@@ -33,6 +34,18 @@ def supervisor_agent(state: AgentsState):
 
   # Early exit: after the second invoke, if relevance is still under threshold, we will stop retrying
   if attempt == 1 and reason == "low_relevance_score" and failed_metric.get("avg_score", 1.0) < EARLY_EXIT_SCORE_THRESHOLD:
+    log_event(
+      service="lumen", event_type="supervisor_routed", severity="warning",
+      node_or_route="supervisor",
+      message="Supervisor applied early exit and routed workflow to source_critic",
+      context={
+        "reason": reason,
+        "failed_metric": failed_metric,
+        "attempt": attempt + 1,
+        "route": "source_critic",
+        "degraded": True,
+      },
+    )
     return {
       "degraded": True,
       "retry_history": state.get("retry_history", []) + [feedback],
@@ -41,6 +54,18 @@ def supervisor_agent(state: AgentsState):
 
   
   if attempt >= MAX_RETRIES:
+    log_event(
+      service="lumen", event_type="supervisor_routed", severity="warning",
+      node_or_route="supervisor",
+      message="Supervisor reached max retries and routed workflow to source_critic",
+      context={
+        "reason": reason,
+        "failed_metric": failed_metric,
+        "attempt": attempt + 1,
+        "route": "source_critic",
+        "degraded": True,
+      },
+    )
     return {
       "degraded": True,
       "retry_history": state.get("retry_history", []) + [feedback],

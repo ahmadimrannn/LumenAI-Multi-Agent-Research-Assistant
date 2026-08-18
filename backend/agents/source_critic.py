@@ -3,12 +3,17 @@ from config.llm import llm
 from langchain_core.messages import HumanMessage, AIMessage
 import json
 import re
+from event_logger import log_event
 
 def source_critic_agent(state: AgentsState):
   """Judges raw tavily search results for substantive content vs. spam/low-value sources BEFORE evidence_extraction. Filters search_results down to filtered_search_results."""
 
   original_query = state.get('original_query', "")
   search_results = state['search_results']
+  filtered_search_results = []
+  kept_count = 0
+  discarded_count = 0
+  critic_failed = False
 
   source_critic_prompt = f"""
     You are a Source Quality Critic.
@@ -82,9 +87,14 @@ def source_critic_agent(state: AgentsState):
     kept_count = len(search_results)
     discarded_count = 0
     critic_failed = True
+    log_event(
+      service="lumen", event_type="source_critic_failure", severity="critical",
+      node_or_route="source_critic",
+      message="Source critic failed",
+      context={"kept_count": kept_count},
+    )
   else:
     verdict_by_index = {v.get("source_index"): v for v in verdicts if isinstance(v, dict)}
-    filtered_search_results = []
     discarded = [] 
 
     for i, source in enumerate(search_results):
@@ -100,7 +110,6 @@ def source_critic_agent(state: AgentsState):
 
       kept_count = len(filtered_search_results)
       discarded_count = len(discarded)
-      critic_failed = False
   
   agent_message = f"""
     🧪 Source Critic completed {"with PARSE FAILURE — all sources passed through unfiltered" if critic_failed else "successfully"}.

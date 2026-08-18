@@ -3,6 +3,7 @@ from config.llm import llm
 from langchain_core.messages import HumanMessage, AIMessage
 import json
 import re
+from event_logger import log_event
 
 def conflicts_analysis_agent(state: AgentsState):
   """Compare the extracted evidences to find conflicts between sources."""
@@ -156,6 +157,12 @@ No additional text.
     json.loads(raw_content)
     parse_failed = False
   except:
+    log_event(
+      service="lumen", event_type="conflicts_analysis_failure", severity="critical",
+      node_or_route="conflicts_analyst",
+      message="All chunks failed to parse — zero evidence extracted, degraded=True",
+      context={"raw_content_length": len(raw_content)},
+    )
     parse_failed = True
 
   conflicts_analysis = raw_content

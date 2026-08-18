@@ -3,6 +3,7 @@ import re
 from agents.agents_state import AgentsState
 from config.llm import llm
 from langchain_core.messages import HumanMessage, AIMessage
+from event_logger import log_event
 
 
 def _chunk(lst, size):
@@ -80,6 +81,12 @@ Return ONLY JSON. No markdown. No explanations.
       print(f"Last 300 chars: {raw_content[-300:]}")
       print(f"First 300 chars: {raw_content[:300]}")
       print("--- END ---")
+      log_event(
+        service="lumen", event_type="chunk_parse_failure", severity="warning",
+        node_or_route="evidence_extractor",
+        message=f"Chunk parse failure at start_index={start_index}: {e}",
+        context={"raw_content_len": len(raw_content), "raw_tail": raw_content[-300:]},
+      )
       return [], True
 
 
@@ -95,18 +102,30 @@ def evidence_extractor_agent(state: AgentsState):
     any_chunk_failed = False
 
     for i, chunk in enumerate(_chunk(search_results, CHUNK_SIZE)):
-        start_index = i * CHUNK_SIZE
-        chunk_evidence, chunk_failed = _extract_chunk(original_query, chunk, start_index)
-        if chunk_failed:
-            any_chunk_failed = True
-        else:
-            all_evidence.extend(chunk_evidence)
+      start_index = i * CHUNK_SIZE
+      chunk_evidence, chunk_failed = _extract_chunk(original_query, chunk, start_index)
+      if chunk_failed:
+        any_chunk_failed = True
+        log_event(
+          service="lumen", event_type="partial_extraction_failure", severity="warning",
+          node_or_route="evidence_extractor",
+          message="Some chunks failed to parse — zero evidence extracted, degraded=True",
+          context={"sources_attempted": len(search_results)},
+        )
+      else:
+          all_evidence.extend(chunk_evidence)
 
     evidence_count = len(all_evidence)
 
     extraction_failed = (evidence_count == 0)
 
     if extraction_failed == True:
+      log_event(
+        service="lumen", event_type="total_extraction_failure", severity="critical",
+        node_or_route="evidence_extractor",
+        message="All chunks failed to parse — zero evidence extracted, degraded=True",
+        context={"sources_attempted": len(search_results)},
+      )     
       agent_message = f"""Evidence Extraction failed ❌. No usable evidence extracted. Next Agent -> report_writer"""
       return {
       "messages": [AIMessage(content=agent_message)],

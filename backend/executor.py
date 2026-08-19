@@ -199,7 +199,7 @@ if __name__=="__main__":
     thread_id = str(uuid.uuid4())
     print("Thread ID:", thread_id)
 
-    output = graph_executor("Analyze how the 2024 global semiconductor chip supply chain shifts impacted automotive production timelines in Germany through 2025, and summarize the projected outlook for 2026.", thread_id)
+    output = graph_executor("what is recursion in programming?", thread_id)
 
     result = output
     while result['status'] == "interrupted":

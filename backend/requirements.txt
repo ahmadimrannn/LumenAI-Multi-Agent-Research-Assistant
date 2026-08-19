@@ -13,6 +13,5 @@ langgraph-cli[inmem]
 langgraph-checkpoint-sqlite
 langgraph-checkpoint-postgres
 langchain-google-genai
-psycopg2
 psycopg[binary] 
 psycopg-pool

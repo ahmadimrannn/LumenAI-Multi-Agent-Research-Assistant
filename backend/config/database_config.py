@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Retrieve PostgreSQL database connection URI from environment
-POSTGRES_DB_URI = os.getenv("POSTGRES_DB_URI", "postgresql://postgres:postgres@localhost:5432/lead_db")
+POSTGRES_DB_URI = os.getenv("POSTGRES_DB_URI")
 
 # Initialize PostgreSQL Connection Pool
 pool = ConnectionPool(

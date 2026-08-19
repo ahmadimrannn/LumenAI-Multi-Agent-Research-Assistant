@@ -15,12 +15,13 @@ POSTGRES_DB_URI = os.getenv("POSTGRES_DB_URI")
 pool = ConnectionPool(
   conninfo=POSTGRES_DB_URI,
   max_size=10,
-  max_idle=180,
+  max_idle=300,
   kwargs={
       "autocommit": True,
       "prepare_threshold": 0,
       "row_factory": dict_row,
   },
+  check=ConnectionPool.check_connection
 )
 # Initialize LangGraph Postgres Checkpointer
 checkpointer = PostgresSaver(pool, serde=JsonPlusSerializer())

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from fastapi import HTTPException
 import uuid
 from event_logger import log_event
+from config.database_config import pool
 
 app = FastAPI()
 
@@ -15,6 +16,20 @@ class ResumeRequest(BaseModel):
   thread_id: str
   action: str
   edited_query: str | None = None
+
+
+@app.get("/health")
+def health_check():
+  try:
+    with pool.connection() as conn:
+      conn.execute("SELECT 1")
+    return {
+      "status": "ok",
+      "db": "reachable"
+    }
+  except Exception as e:
+    raise HTTPException(status_code=503, detail=f"db unreachable: {str(e)}")
+
 
 
 @app.post("/research")

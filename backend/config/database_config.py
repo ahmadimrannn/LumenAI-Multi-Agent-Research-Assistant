@@ -15,7 +15,7 @@ POSTGRES_DB_URI = os.getenv("POSTGRES_DB_URI")
 pool = ConnectionPool(
   conninfo=POSTGRES_DB_URI,
   max_size=10,
-  max_idle=300,
+  max_idle=180,
   kwargs={
       "autocommit": True,
       "prepare_threshold": 0,

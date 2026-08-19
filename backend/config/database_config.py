@@ -1,12 +1,29 @@
-import sqlite3
-from pathlib import Path
+import os
+from langgraph.checkpoint.postgres import PostgresSaver
+from psycopg_pool import ConnectionPool
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+from psycopg.rows import dict_row
+from dotenv import load_dotenv
 
-from langgraph.checkpoint.sqlite import SqliteSaver
+# Load environment variables from .env file
+load_dotenv()
 
-DATABASE_PATH = Path(__file__).resolve().parent.parent / "database" / "lumen_checkpoints.db"
-DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
+# Retrieve PostgreSQL database connection URI from environment
+POSTGRES_DB_URI = os.getenv("POSTGRES_DB_URI", "postgresql://postgres:postgres@localhost:5432/lead_db")
 
-connection = sqlite3.connect(DATABASE_PATH, check_same_thread=False)
+# Initialize PostgreSQL Connection Pool
+pool = ConnectionPool(
+  conninfo=POSTGRES_DB_URI,
+  max_size=10,
+  kwargs={
+      "autocommit": True,
+      "prepare_threshold": 0,
+      "row_factory": dict_row,
+  },
+)
+# Initialize LangGraph Postgres Checkpointer
+checkpointer = PostgresSaver(pool, serde=JsonPlusSerializer())
 
-checkpointer = SqliteSaver(conn=connection)
+# Automatically create necessary checkpoint tables in PostgreSQL if they do not exist
 checkpointer.setup()
+

@@ -1,5 +1,3 @@
-# File for compiling and invoking the graph
-
 import uuid
 from dotenv import load_dotenv
 
@@ -7,7 +5,6 @@ from config.database_config import checkpointer
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
-from langgraph.checkpoint.memory import MemorySaver
 
 from agents.agents_state import AgentsState
 from agents.query_classifier import query_classifier_agent
@@ -86,7 +83,7 @@ def build_graph():
     graph_builder.add_edge('conflicts_analyst', 'report_writer')
     graph_builder.add_edge('report_writer', END)
 
-    graph = graph_builder.compile()
+    graph = graph_builder.compile(checkpointer=checkpointer)
 
     return graph
 

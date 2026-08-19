@@ -11,5 +11,6 @@ langsmith
 uvicorn
 langgraph-cli[inmem]
 langgraph-checkpoint-sqlite
+langgraph-checkpoint-postgres
 langchain-google-genai
 psycopg2

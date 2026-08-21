@@ -121,8 +121,18 @@ def source_critic_agent(state: AgentsState):
     """
   
   print("Source Critic Done ✅")
+  log_event(
+    service="lumen", event_type="source_critic_completed", severity="info",
+    node_or_route="source_critic",
+    message="Source critic finished filtering low-quality sources.",
+    context={
+      "sources_in": len(search_results),
+      "sources_kept": kept_count,
+      "sources_discarded": discarded_count,
+      "critic_failed": critic_failed,
+    },
+  )
 
-  
   return {
      "messages": [AIMessage(content=agent_message)],
      "raw_search_results": search_results,

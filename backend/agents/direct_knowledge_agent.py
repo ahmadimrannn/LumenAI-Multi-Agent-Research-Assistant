@@ -1,6 +1,7 @@
 from agents.agents_state import AgentsState
 from config.llm import llm
 from langchain_core.messages import HumanMessage, AIMessage
+from event_logger import log_event
 
 def direct_knowledge_agent(state: AgentsState):
   """
@@ -217,6 +218,13 @@ def direct_knowledge_agent(state: AgentsState):
     Cover the requested topic thoroughly while remaining focused on the user's actual question.
   """
 
+  log_event(
+    service="lumen", event_type="direct_knowledge_agent_started", severity="info",
+    node_or_route="direct_knowledge_agent",
+    message="Direct knowledge agent began generating a knowledge package.",
+    context={"query": query},
+  )
+
   response = llm.invoke([HumanMessage(content=direct_knowledge_agent_prompt)])
   package = response.content[0]['text'] if response.content[0]['text'] else ""
 
@@ -230,6 +238,12 @@ def direct_knowledge_agent(state: AgentsState):
   """
 
   print("Direct Knowledge Agent Done ✅")
+  log_event(
+    service="lumen", event_type="direct_knowledge_agent_completed", severity="info",
+    node_or_route="direct_knowledge_agent",
+    message="Direct knowledge agent completed and prepared internal knowledge for the writer.",
+    context={"knowledge_length_chars": len(package), "route": "report_writer"},
+  )
 
   return {
     "messages": [AIMessage(content=agent_message)],

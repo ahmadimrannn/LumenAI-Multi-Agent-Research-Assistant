@@ -146,6 +146,17 @@ def evidence_extractor_agent(state: AgentsState):
     """
 
     print("Evidence Extractor Done ✅")
+    log_event(
+      service="lumen", event_type="evidence_extraction_completed", severity="info",
+      node_or_route="evidence_extractor",
+      message="Evidence extraction completed successfully.",
+      context={
+        "sources_attempted": len(search_results),
+        "evidence_count": evidence_count,
+        "partial_failures": any_chunk_failed,
+        "route": "conflicts_analyst",
+      },
+    )
 
     return {
         "messages": [AIMessage(content=agent_message)],

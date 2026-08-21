@@ -4,6 +4,7 @@ from .agents_state import AgentsState
 from utils.tavily_invoke import invoke_tavily 
 from config.llm import llm
 from langchain_core.messages import HumanMessage
+from event_logger import log_event
 
 load_dotenv()
 
@@ -46,12 +47,24 @@ def researcher_agent(state: AgentsState):
 
     agent_message = f"Here are the search results based on the query {refined_query}. \n\n 🔍 Search Results: {result[:2]}"
 
-  print("Researcher Done ✅")
+  query_used = refined_query if len(retry_history) > 0 else query
 
+  print("Researcher Done ✅")
+  log_event(
+    service="lumen", event_type="researcher_completed", severity="info",
+    node_or_route="researcher",
+    message="Researcher fetched external search results.",
+    context={
+      "retry_count": len(retry_history),
+      "query_used": query_used,
+      "result_count": len(result),
+      "knowledge_source": "external_knowledge",
+    },
+  )
 
   return {
     "messages": [AIMessage(content=agent_message)],
     "search_results": result,
     "knowledge_source": "external_knowledge",
-    "query": refined_query if len(retry_history) > 0 else query # Update the query state with the latest query if the length of retry history > 0, otherwise keep the old query in the query state
+    "query": query_used # Update the query state with the latest query if the length of retry history > 0, otherwise keep the old query in the query state
   }

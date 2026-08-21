@@ -1,6 +1,7 @@
 from agents.agents_state import AgentsState
 from config.llm import llm
 from langchain_core.messages import HumanMessage, AIMessage
+from event_logger import log_event
 import json
 import re
 
@@ -16,6 +17,12 @@ def query_classifier_agent(state: AgentsState):
 
 # Empty or whitespace
   if not query:
+    log_event(
+      service="lumen", event_type="query_classifier_invalid", severity="info",
+      node_or_route="query_classifier",
+      message="Query rejected as empty.",
+      context={"query": query},
+    )
     return {
       "messages": [
           AIMessage(content="❌ Query rejected: Empty query.")
@@ -29,6 +36,12 @@ def query_classifier_agent(state: AgentsState):
 
 # Only punctuation / symbols
   if re.fullmatch(r"[\W_]+", query):
+    log_event(
+      service="lumen", event_type="query_classifier_invalid", severity="info",
+      node_or_route="query_classifier",
+      message="Query rejected because it contains only punctuation or symbols.",
+      context={"query": query},
+    )
     return {
       "messages": [
           AIMessage(content="❌ Query rejected: Only punctuation or symbols.")
@@ -43,6 +56,12 @@ def query_classifier_agent(state: AgentsState):
 # Extremely short repeated characters
 # e.g. aaaaa, !!!!!, ......
   if re.fullmatch(r"(.)\1{4,}", query):
+    log_event(
+      service="lumen", event_type="query_classifier_invalid", severity="info",
+      node_or_route="query_classifier",
+      message="Query rejected because it contains repeated characters only.",
+      context={"query": query},
+    )
     return {
       "messages": [
           AIMessage(content="❌ Query rejected: Repeated characters.")
@@ -62,6 +81,12 @@ def query_classifier_agent(state: AgentsState):
     and " " not in query
     and not re.search(r"[aeiouAEIOU]", letters)
   ):
+    log_event(
+      service="lumen", event_type="query_classifier_invalid", severity="info",
+      node_or_route="query_classifier",
+      message="Query rejected because it appears to be random keyboard input.",
+      context={"query": query},
+    )
     return {
       "messages": [
           AIMessage(content="❌ Query rejected: Appears to be random keyboard input.")
@@ -295,6 +320,18 @@ def query_classifier_agent(state: AgentsState):
   """
 
   print("Query Classifier Done ✅")
+  log_event(
+    service="lumen", event_type="query_classifier_decision", severity="info",
+    node_or_route="query_classifier",
+    message="Query classification completed.",
+    context={
+      "is_valid": is_valid,
+      "requires_approval": requires_approval,
+      "requires_external_research": requires_external_research,
+      "route": next_step,
+      "classifier_reason": classifier_reason,
+    },
+  )
   
   return {
     "messages": [AIMessage(content=agent_message)],

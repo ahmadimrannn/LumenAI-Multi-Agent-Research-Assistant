@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage
 from .agents_state import AgentsState
 from config.llm import llm
+from event_logger import log_event
 
 load_dotenv()
 
@@ -370,6 +371,17 @@ def report_writer_agent(state: AgentsState):
   """
 
   print("Report Writer Done ✅")
+  log_event(
+    service="lumen", event_type="report_writer_completed", severity="info",
+    node_or_route="report_writer",
+    message="Report writer finished the final research report.",
+    context={
+      "word_count": len(findings.split()),
+      "degraded": degraded,
+      "sources_used": len(search_results),
+      "route": "end",
+    },
+  )
 
   return {
     "messages": [AIMessage(content=agent_message)],

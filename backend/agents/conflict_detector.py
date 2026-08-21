@@ -179,7 +179,16 @@ No additional text.
   """
 
   print("Conflict Detector Done ✅")
-
+  log_event(
+    service="lumen", event_type="conflicts_analysis_completed", severity="info",
+    node_or_route="conflicts_analyst",
+    message="Conflict analysis completed for the extracted evidence.",
+    context={
+      "evidence_source_count": evidence_source_count,
+      "parse_failed": parse_failed,
+      "route": "report_writer",
+    },
+  )
 
   return {
     "messages": [AIMessage(content=agent_message)],

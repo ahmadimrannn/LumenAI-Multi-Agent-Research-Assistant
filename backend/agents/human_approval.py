@@ -1,6 +1,7 @@
 from agents.agents_state import AgentsState
 from langgraph.types import interrupt
 from langchain_core.messages import AIMessage
+from event_logger import log_event
 
 def human_approval_agent(state: AgentsState):
   """
@@ -18,6 +19,12 @@ def human_approval_agent(state: AgentsState):
   approval_history = state.get("approval_history", [])
 
   if len(approval_history) >= 3:
+    log_event(
+      service="lumen", event_type="human_approval_limit_reached", severity="info",
+      node_or_route="human_approval",
+      message="Maximum human approval attempts reached; workflow ended.",
+      context={"approval_history_length": len(approval_history), "query": query},
+    )
     return {
       "approval_history": approval_history,
       "route": "end",
@@ -31,6 +38,13 @@ def human_approval_agent(state: AgentsState):
         )
       ]
     }
+
+  log_event(
+    service="lumen", event_type="human_approval_requested", severity="info",
+    node_or_route="human_approval",
+    message="Human approval requested for sensitive or potentially risky query.",
+    context={"query": query, "classifier_reason": classifier_reason},
+  )
 
   approval = interrupt(
     {
@@ -58,6 +72,12 @@ def human_approval_agent(state: AgentsState):
 
   if action == "approve": 
     next_route = "researcher"
+    log_event(
+      service="lumen", event_type="human_approval_approved", severity="info",
+      node_or_route="human_approval",
+      message="Human approved the query and resumed the research workflow.",
+      context={"query": query, "next_route": next_route, "approval_history_length": len(history)},
+    )
     return {
       "approval_status": "approved",
       "route": next_route,
@@ -68,6 +88,12 @@ def human_approval_agent(state: AgentsState):
   elif action == "edit":
     next_route = "query_classifier"
     edited_query = approval.get("edited_query", query)
+    log_event(
+      service="lumen", event_type="human_approval_edited", severity="info",
+      node_or_route="human_approval",
+      message="Human edited the query and returned it to classifier review.",
+      context={"original_query": query, "edited_query": edited_query, "next_route": next_route},
+    )
 
     return {
       "approval_status": "edited",
@@ -79,9 +105,13 @@ def human_approval_agent(state: AgentsState):
     }
   
   print("Human Approval Done ✅")
+  log_event(
+    service="lumen", event_type="human_approval_rejected", severity="info",
+    node_or_route="human_approval",
+    message="Human rejected the query and ended the research workflow.",
+    context={"query": query, "approval_history_length": len(history)},
+  )
   
-  
-
   next_route = "end"
   return {
     "approval_status": "rejected",

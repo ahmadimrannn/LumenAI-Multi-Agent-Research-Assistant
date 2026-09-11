@@ -31,3 +31,7 @@ EXCLUDE_DOMAINS = [
   "issuu.com",
   "slideshare.net",
 ]
+
+AUTO_TRIGGER_SEVERITIES = {"error", "critical"}   # severities that will automatically trigger the sentry loop graph to run the investigation
+COOLDOWN_MINUTES = 20 # no repeat trigger for the same error or log in the 20 minutes window
+SENTRYLOOP_INVOKE_URL = "https://sentryloop-backend.vercel.app/api/investigate"

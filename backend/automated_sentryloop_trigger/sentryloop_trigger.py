@@ -91,6 +91,7 @@ def _fire_investigation(service: str, incident_text: str):
                 headers={"Authorization": f"Bearer {internal_secret}"},
                 timeout=5,
             )
+            print("request to sentry loop backend done...")
             if response.status_code >= 400:
                 print(f"[sentryloop_trigger] investigate call rejected: "
                       f"{response.status_code} {response.text}")

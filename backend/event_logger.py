@@ -37,6 +37,6 @@ def log_event(service: str, event_type: str, message: str,
                     json.dumps(context or {}),
                 ),
             )
-            maybe_trigger_investigation(conn, service, severity, node_or_route)
+            maybe_trigger_investigation(conn, service, severity, node_or_route, event_type, message, context)
     except Exception:
         print(f"[events_logger] failed to log event: {traceback.format_exc()}")

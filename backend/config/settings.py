@@ -1,3 +1,5 @@
+import os
+
 GROQ_LLM_MODEL_NAME="meta-llama/llama-4-scout-17b-16e-instruct"
 GEMINI_LLM_MODEL_NAME="gemini-3.1-flash-lite"
 MIN_RESULTS_COUNT=3
@@ -32,6 +34,9 @@ EXCLUDE_DOMAINS = [
   "slideshare.net",
 ]
 
-AUTO_TRIGGER_SEVERITIES = {"error", "critical"}   # severities that will automatically trigger the sentry loop graph to run the investigation
-COOLDOWN_MINUTES = 20 # no repeat trigger for the same error or log in the 20 minutes window
-SENTRYLOOP_INVOKE_URL = "https://sentryloop-backend.vercel.app/api/investigate"
+AUTO_TRIGGER_SEVERITIES = {"error", "critical"}   # severities that will automatically trigger the sentry loop api
+COOLDOWN_MINUTES = 20  # no repeat trigger for the same error in 20 minutes window
+SENTRYLOOP_INTERNAL_INVOKE_URL = "https://sentryloop-backend.vercel.app/internal/investigate"
+MAX_TRIGGERS_PER_HOUR = 20
+SKIP_AUTO_TRIGGER_FOR = {"sentryloop"}
+INTERNAL_TRIGGER_SECRET = os.getenv("INTERNAL_TRIGGER_SECRET")

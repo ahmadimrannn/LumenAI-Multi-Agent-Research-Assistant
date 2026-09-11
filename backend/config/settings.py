@@ -39,4 +39,3 @@ COOLDOWN_MINUTES = 20  # no repeat trigger for the same error in 20 minutes wind
 SENTRYLOOP_INTERNAL_INVOKE_URL = "https://sentryloop-backend.vercel.app/internal/investigate"
 MAX_TRIGGERS_PER_HOUR = 20
 SKIP_AUTO_TRIGGER_FOR = {"sentryloop"}
-INTERNAL_TRIGGER_SECRET = os.getenv("INTERNAL_TRIGGER_SECRET")

@@ -1,5 +1,6 @@
 import uuid
 from dotenv import load_dotenv
+from typing import Generator, Optional, Any
 
 from config.database_config import checkpointer
 
@@ -21,20 +22,21 @@ from utils.select_route import select_route
 
 load_dotenv()
 
+
 def build_graph():
     graph_builder = StateGraph(AgentsState)
 
     graph_builder.add_node("query_classifier", query_classifier_agent)
     graph_builder.add_node("human_approval", human_approval_agent)
     graph_builder.add_node("direct_knowledge_agent", direct_knowledge_agent)
-    graph_builder.add_node('researcher', researcher_agent)
-    graph_builder.add_node('supervisor', supervisor_agent)
-    graph_builder.add_node('source_critic', source_critic_agent)
-    graph_builder.add_node('evidence_extractor', evidence_extractor_agent)
-    graph_builder.add_node('conflicts_analyst', conflicts_analysis_agent)
-    graph_builder.add_node('report_writer', report_writer_agent)
+    graph_builder.add_node("researcher", researcher_agent)
+    graph_builder.add_node("supervisor", supervisor_agent)
+    graph_builder.add_node("source_critic", source_critic_agent)
+    graph_builder.add_node("evidence_extractor", evidence_extractor_agent)
+    graph_builder.add_node("conflicts_analyst", conflicts_analysis_agent)
+    graph_builder.add_node("report_writer", report_writer_agent)
 
-    graph_builder.add_edge(START, 'query_classifier')
+    graph_builder.add_edge(START, "query_classifier")
     graph_builder.add_conditional_edges(
         "query_classifier",
         select_route,
@@ -42,16 +44,16 @@ def build_graph():
             "researcher": "researcher",
             "human_approval": "human_approval",
             "direct_knowledge_agent": "direct_knowledge_agent",
-            "end": END
-        }
+            "end": END,
+        },
     )
     graph_builder.add_conditional_edges(
         "direct_knowledge_agent",
         select_route,
         {
             "report_writer": "report_writer",
-            "researcher": "researcher"
-        }
+            "researcher": "researcher",
+        },
     )
     graph_builder.add_conditional_edges(
         "human_approval",
@@ -59,41 +61,40 @@ def build_graph():
         {
             "researcher": "researcher",
             "query_classifier": "query_classifier",
-            "end": END
-        }
+            "end": END,
+        },
     )
-    graph_builder.add_edge('researcher', 'supervisor')
+    graph_builder.add_edge("researcher", "supervisor")
     graph_builder.add_conditional_edges(
         "supervisor",
         select_route,
         {
             "researcher": "researcher",
-            "source_critic": "source_critic"
-        }
+            "source_critic": "source_critic",
+        },
     )
-    graph_builder.add_edge('source_critic', 'evidence_extractor')
+    graph_builder.add_edge("source_critic", "evidence_extractor")
     graph_builder.add_conditional_edges(
         "evidence_extractor",
         select_route,
         {
             "conflicts_analyst": "conflicts_analyst",
-            "report_writer": "report_writer"
-        }
+            "report_writer": "report_writer",
+        },
     )
-    graph_builder.add_edge('conflicts_analyst', 'report_writer')
-    graph_builder.add_edge('report_writer', END)
+    graph_builder.add_edge("conflicts_analyst", "report_writer")
+    graph_builder.add_edge("report_writer", END)
 
     graph = graph_builder.compile(checkpointer=checkpointer)
-
     return graph
 
 
 graph = build_graph()
 
-def graph_executor(query: str, thread_id: str):
-    config = {"configurable": {"thread_id": thread_id}}
 
-    initial_state = {
+def _build_initial_state(query: str) -> dict:
+    """Full state for a brand-new thread."""
+    return {
         "query": query,
         "original_query": query,
         "is_valid": True,
@@ -115,126 +116,162 @@ def graph_executor(query: str, thread_id: str):
         "messages": [],
         "next_agent": "",
         "degraded": False,
-        "route": ""
+        "route": "",
     }
-    result = graph.invoke(initial_state, config=config)
 
-    if "__interrupt__" in result:
-        return {
-            "status": "interrupted",
-            "interrupt": result['__interrupt__'][0].value,
-            "thread_id": thread_id
+
+def graph_executor_stream(
+    query: str, thread_id: str
+) -> Generator[dict[str, Any], None, None]:
+    """
+    Streams node-by-node updates using graph.stream(stream_mode="updates").
+    Supports both new threads and multi-turn continuations.
+    """
+    config = {"configurable": {"thread_id": thread_id}}
+
+    existing = graph.get_state(config)
+    is_continuation = bool(existing.values)
+
+    if is_continuation:
+        input_state = {
+            "query": query,
+            "messages": [{"role": "user", "content": query}],
         }
-    
-    return {
-        "status": "completed",
-        "response": result["findings"],
-        "requires_external_research": result["requires_external_research"],
-        "knowledge_source": result["knowledge_source"],
-        "termination_reason": result.get("termination_reason", ""),
-        "messages": result["messages"],
-        "search_results": result["search_results"],
-        "raw_search_results": result["raw_search_results"],
-        "evidence_extracted": result["evidence_extracted"],
-        "conflicts_analysis": result["conflicts_analysis"],
-        "degraded": result["degraded"],
-        "retry_history": result["retry_history"],
-    }
+    else:
+        input_state = _build_initial_state(query)
+
+    for event in graph.stream(input_state, config=config, stream_mode="updates"):
+        yield {
+            "type": "node_update",
+            "thread_id": thread_id,
+            "data": event,
+        }
+
+    # After the stream finishes, inspect final state for interrupt or completion
+    final_state = graph.get_state(config)
+
+    if final_state.next: 
+        interrupt_value = None
+        if final_state.tasks:
+            for task in final_state.tasks:
+                if task.interrupts:
+                    interrupt_value = task.interrupts[0].value
+                    break
+
+        yield {
+            "type": "interrupted",
+            "status": "interrupted",
+            "thread_id": thread_id,
+            "interrupt": interrupt_value,
+        }
+    else:
+        values = final_state.values or {}
+        yield {
+            "type": "completed",
+            "status": "completed",
+            "thread_id": thread_id,
+            "response": values.get("findings", ""),
+            "requires_external_research": values.get("requires_external_research"),
+            "knowledge_source": values.get("knowledge_source"),
+            "termination_reason": values.get("termination_reason", ""),
+            "messages": values.get("messages", []),
+            "search_results": values.get("search_results", []),
+            "raw_search_results": values.get("raw_search_results", []),
+            "evidence_extracted": values.get("evidence_extracted", []),
+            "conflicts_analysis": values.get("conflicts_analysis", []),
+            "degraded": values.get("degraded", False),
+            "retry_history": values.get("retry_history", []),
+        }
+
 
 def resume_graph(
-        thread_id: str,
-        action: str,
-        edited_query: str | None = None
+    thread_id: str,
+    action: str,
+    edited_query: str | None = None,
 ):
-    
-    config = {"configurable": {
-        "thread_id": thread_id
-    }}
-    
-    resume_payload = {
-        "action": action
-    }
+    """
+    Resume a paused (interrupted) graph.
+    Kept synchronous and almost identical to your original implementation.
+    """
+    config = {"configurable": {"thread_id": thread_id}}
 
+    resume_payload: dict[str, Any] = {"action": action}
     if action == "edit":
         resume_payload["edited_query"] = edited_query
 
-    result = graph.invoke(
-        Command(resume=resume_payload),
-        config=config
-    )
-
+    result = graph.invoke(Command(resume=resume_payload), config=config)
 
     if "__interrupt__" in result:
         return {
             "status": "interrupted",
-            "interrupt": result['__interrupt__'][0].value,
-            "thread_id": thread_id
+            "interrupt": result["__interrupt__"][0].value,
+            "thread_id": thread_id,
         }
-    
+
     return {
         "status": "completed",
-        "response": result["findings"],
-        "requires_external_research": result["requires_external_research"],
-        "knowledge_source": result["knowledge_source"],
-        "messages": result["messages"],
+        "response": result.get("findings", ""),
+        "requires_external_research": result.get("requires_external_research"),
+        "knowledge_source": result.get("knowledge_source"),
+        "messages": result.get("messages", []),
         "termination_reason": result.get("termination_reason", ""),
-        "search_results": result["search_results"],
-        "raw_search_results": result["raw_search_results"],
-        "evidence_extracted": result["evidence_extracted"],
-        "conflicts_analysis": result["conflicts_analysis"],
-        "degraded": result["degraded"],
-        "retry_history": result["retry_history"],
+        "search_results": result.get("search_results", []),
+        "raw_search_results": result.get("raw_search_results", []),
+        "evidence_extracted": result.get("evidence_extracted", []),
+        "conflicts_analysis": result.get("conflicts_analysis", []),
+        "degraded": result.get("degraded", False),
+        "retry_history": result.get("retry_history", []),
     }
 
 
-if __name__=="__main__":
-    # ⚠️WARNING: edited_query parameter must be passed in the resume_graph() when the action is edit, otherwise edited_query parameter is not needed to pass as the parameter.
-    # result = resume_graph(thread_id="19b27e4a-e62f-4d7c-abf1-b9f26025b8af", action="edit", edited_query="what is recursion in programming?")
-    # print("Workflow completed successfully.")
-    # print(f"Response: {result['response']}")
-    # print("Knowledge Source:", result["knowledge_source"])
-    # print("Requires research:", result["requires_external_research"])
-    # print(f"Agent Messages: {result['messages']}")
+# for local testing / backwards compatibility
+def graph_executor(query: str, thread_id: str):
+    """Synchronous wrapper – useful for the __main__ block and quick tests."""
+    final = None
+    for event in graph_executor_stream(query, thread_id):
+        if event["type"] in ("completed", "interrupted"):
+            final = event
+    return final
 
+
+if __name__ == "__main__":
     thread_id = str(uuid.uuid4())
     print("Thread ID:", thread_id)
 
-    output = graph_executor("what is recursion in programming?", thread_id)
+    result = None
+    for event in graph_executor_stream("what is recursion in programming?", thread_id):
+        print("EVENT:", event["type"])
+        if event["type"] in ("completed", "interrupted"):
+            result = event
 
-    result = output
-    while result['status'] == "interrupted":
-        print("Execution stopped because of human approval")
+    while result and result["status"] == "interrupted":
+        print("\nExecution stopped for human approval")
+        print("Interrupt:", result.get("interrupt"))
 
-        interrupt = result['interrupt']
-        print("Interrupt:", interrupt)
-    
         while True:
             choice = input(
-                "\n Choose from one of the following options (approve, reject, edit): " 
+                "\nChoose (approve / reject / edit): "
             ).strip().lower()
-
             if choice in {"approve", "reject", "edit"}:
                 break
-
-            print("Invalid Choice")
+            print("Invalid choice")
 
         edited_query = None
         if choice == "edit":
             edited_query = input("Enter new query: ").strip()
-        
+
         result = resume_graph(
-            thread_id=result['thread_id'],
+            thread_id=result["thread_id"],
             action=choice,
-            edited_query=edited_query
+            edited_query=edited_query,
         )
 
-
-    if result["termination_reason"]:
-        print("Workflow Terminated.")
-        print("Reason:", result["termination_reason"])
-    else:
-        print("Workflow completed successfully.")
-        print(f"Response: {result['response']}")
-        print("Knowledge Source:", result["knowledge_source"])
-        print("Requires research:", result["requires_external_research"])
-    print(f"Agent Messages: {result['messages']}")
+    if result:
+        if result.get("termination_reason"):
+            print("Workflow Terminated.")
+            print("Reason:", result["termination_reason"])
+        else:
+            print("Workflow completed successfully.")
+            print(f"Response: {result.get('response', '')[:300]}...")
+            print("Knowledge Source:", result.get("knowledge_source"))
+            print("Requires research:", result.get("requires_external_research"))

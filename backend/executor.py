@@ -6,6 +6,8 @@ from config.database_config import checkpointer
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
+import traceback
+from typing import Generator, Any
 
 from agents.agents_state import AgentsState
 from agents.query_classifier import query_classifier_agent
@@ -124,63 +126,82 @@ def graph_executor_stream(
     query: str, thread_id: str
 ) -> Generator[dict[str, Any], None, None]:
     """
-    Streams node-by-node updates using graph.stream(stream_mode="updates").
-    Supports both new threads and multi-turn continuations.
+    Production-hardened streaming version.
+    Yields node updates + final completed/interrupted event.
+    Never lets an exception kill the connection silently.
     """
     config = {"configurable": {"thread_id": thread_id}}
 
-    existing = graph.get_state(config)
-    is_continuation = bool(existing.values)
+    try:
+        existing = graph.get_state(config)
+        is_continuation = bool(existing.values)
 
-    if is_continuation:
-        input_state = {
-            "query": query,
-            "messages": [{"role": "user", "content": query}],
-        }
-    else:
-        input_state = _build_initial_state(query)
+        if is_continuation:
+            input_state = {
+                "query": query,
+                "messages": [{"role": "user", "content": query}],
+            }
+        else:
+            input_state = _build_initial_state(query)
 
-    for event in graph.stream(input_state, config=config, stream_mode="updates"):
+        # Stream node-by-node updates
+        for event in graph.stream(
+            input_state,
+            config=config,
+            stream_mode="updates",
+        ):
+            yield {
+                "type": "node_update",
+                "thread_id": thread_id,
+                "data": event,
+            }
+
+        # After stream finishes, check final state
+        final_state = graph.get_state(config)
+
+        if final_state.next:  # still has pending nodes → interrupt
+            interrupt_value = None
+            if final_state.tasks:
+                for task in final_state.tasks:
+                    if getattr(task, "interrupts", None):
+                        interrupt_value = task.interrupts[0].value
+                        break
+
+            yield {
+                "type": "interrupted",
+                "status": "interrupted",
+                "thread_id": thread_id,
+                "interrupt": interrupt_value,
+            }
+        else:
+            values = final_state.values or {}
+            yield {
+                "type": "completed",
+                "status": "completed",
+                "thread_id": thread_id,
+                "response": values.get("findings", ""),
+                "requires_external_research": values.get("requires_external_research"),
+                "knowledge_source": values.get("knowledge_source"),
+                "termination_reason": values.get("termination_reason", ""),
+                "messages": values.get("messages", []),
+                "search_results": values.get("search_results", []),
+                "raw_search_results": values.get("raw_search_results", []),
+                "evidence_extracted": values.get("evidence_extracted", []),
+                "conflicts_analysis": values.get("conflicts_analysis", []),
+                "degraded": values.get("degraded", False),
+                "retry_history": values.get("retry_history", []),
+            }
+
+    except Exception as e:
+        # Never let an exception silently close the SSE connection
+        tb = traceback.format_exc()
+        print("STREAM ERROR:", tb)  # still logs on Railway
         yield {
-            "type": "node_update",
+            "type": "error",
+            "status": "error",
             "thread_id": thread_id,
-            "data": event,
-        }
-
-    # After the stream finishes, inspect final state for interrupt or completion
-    final_state = graph.get_state(config)
-
-    if final_state.next: 
-        interrupt_value = None
-        if final_state.tasks:
-            for task in final_state.tasks:
-                if task.interrupts:
-                    interrupt_value = task.interrupts[0].value
-                    break
-
-        yield {
-            "type": "interrupted",
-            "status": "interrupted",
-            "thread_id": thread_id,
-            "interrupt": interrupt_value,
-        }
-    else:
-        values = final_state.values or {}
-        yield {
-            "type": "completed",
-            "status": "completed",
-            "thread_id": thread_id,
-            "response": values.get("findings", ""),
-            "requires_external_research": values.get("requires_external_research"),
-            "knowledge_source": values.get("knowledge_source"),
-            "termination_reason": values.get("termination_reason", ""),
-            "messages": values.get("messages", []),
-            "search_results": values.get("search_results", []),
-            "raw_search_results": values.get("raw_search_results", []),
-            "evidence_extracted": values.get("evidence_extracted", []),
-            "conflicts_analysis": values.get("conflicts_analysis", []),
-            "degraded": values.get("degraded", False),
-            "retry_history": values.get("retry_history", []),
+            "error": str(e),
+            "detail": tb,
         }
 
 

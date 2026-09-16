@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css";
 
 const geist = Geist({
-    variable: "--font-geist-sans",
+    variable: "--font-geist",
     subsets: ["latin"],
 });
 
@@ -19,8 +19,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <html
             lang="en"
             className={`${geist.variable} h-full antialiased`}
+            suppressHydrationWarning
         >
-            <body className="min-h-full flex flex-col">
+            <body className="min-h-full flex flex-col" suppressHydrationWarning>
                 <TooltipProvider>
                     {children}
                 </TooltipProvider>

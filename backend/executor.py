@@ -1,15 +1,11 @@
 import uuid
 from dotenv import load_dotenv
 from typing import Generator, Any
+import traceback
 
 from config.database_config import checkpointer
 
-from langchain_core.messages import BaseMessage
-
 from langgraph.graph import StateGraph, START, END
-from langgraph.types import Command
-import traceback
-from typing import Generator, Any
 
 from agents.agents_state import AgentsState
 from agents.query_classifier import query_classifier_agent
@@ -23,6 +19,9 @@ from agents.conflict_detector import conflicts_analysis_agent
 from agents.report_writer import report_writer_agent
 
 from utils.select_route import select_route
+from utils.make_serializable import make_serializable
+
+from resume_graph import resume_graph
 
 load_dotenv()
 
@@ -92,6 +91,7 @@ def build_graph():
     graph = graph_builder.compile(checkpointer=checkpointer)
     return graph
 
+
 graph = build_graph()
 
 
@@ -123,25 +123,6 @@ def _build_initial_state(query: str) -> dict:
     }
 
 
-def serialize_messages(messages: list) -> list[dict]:
-    """Convert LangChain message objects into plain dicts that can be JSON serialized."""
-    serialized = []
-    for msg in messages:
-        if isinstance(msg, BaseMessage):
-            serialized.append({
-                "type": msg.__class__.__name__,
-                "content": msg.content,
-                "additional_kwargs": getattr(msg, "additional_kwargs", {}),
-                "id": getattr(msg, "id", None),
-            })
-        elif isinstance(msg, dict):
-            serialized.append(msg)
-        else:
-            # fallback
-            serialized.append({"content": str(msg)})
-    return serialized
-
-
 def graph_executor_stream(
     query: str, thread_id: str
 ) -> Generator[dict[str, Any], None, None]:
@@ -167,7 +148,7 @@ def graph_executor_stream(
             yield {
                 "type": "node_update",
                 "thread_id": thread_id,
-                "data": event,
+                "data": make_serializable(event),          # ← FIXED
             }
 
         final_state = graph.get_state(config)
@@ -184,13 +165,10 @@ def graph_executor_stream(
                 "type": "interrupted",
                 "status": "interrupted",
                 "thread_id": thread_id,
-                "interrupt": interrupt_value,
+                "interrupt": make_serializable(interrupt_value),
             }
         else:
             values = final_state.values or {}
-
-            raw_messages = values.get("messages", [])
-            safe_messages = serialize_messages(raw_messages)
 
             yield {
                 "type": "completed",
@@ -200,13 +178,13 @@ def graph_executor_stream(
                 "requires_external_research": values.get("requires_external_research"),
                 "knowledge_source": values.get("knowledge_source"),
                 "termination_reason": values.get("termination_reason", ""),
-                "messages": safe_messages,                    # ← fixed
-                "search_results": values.get("search_results", []),
-                "raw_search_results": values.get("raw_search_results", []),
-                "evidence_extracted": values.get("evidence_extracted", []),
-                "conflicts_analysis": values.get("conflicts_analysis", []),
+                "messages": make_serializable(values.get("messages", [])),
+                "search_results": make_serializable(values.get("search_results", [])),
+                "raw_search_results": make_serializable(values.get("raw_search_results", [])),
+                "evidence_extracted": make_serializable(values.get("evidence_extracted", [])),
+                "conflicts_analysis": make_serializable(values.get("conflicts_analysis", [])),
                 "degraded": values.get("degraded", False),
-                "retry_history": values.get("retry_history", []),
+                "retry_history": make_serializable(values.get("retry_history", [])),
             }
 
     except Exception as e:
@@ -221,46 +199,6 @@ def graph_executor_stream(
         }
 
 
-def resume_graph(
-    thread_id: str,
-    action: str,
-    edited_query: str | None = None,
-):
-    config = {"configurable": {"thread_id": thread_id}}
-
-    resume_payload: dict[str, Any] = {"action": action}
-    if action == "edit":
-        resume_payload["edited_query"] = edited_query
-
-    result = graph.invoke(Command(resume=resume_payload), config=config)
-
-    if "__interrupt__" in result:
-        return {
-            "status": "interrupted",
-            "interrupt": result["__interrupt__"][0].value,
-            "thread_id": thread_id,
-        }
-
-    raw_messages = result.get("messages", [])
-    safe_messages = serialize_messages(raw_messages)
-
-    return {
-        "status": "completed",
-        "response": result.get("findings", ""),
-        "requires_external_research": result.get("requires_external_research"),
-        "knowledge_source": result.get("knowledge_source"),
-        "messages": safe_messages,                    # ← fixed
-        "termination_reason": result.get("termination_reason", ""),
-        "search_results": result.get("search_results", []),
-        "raw_search_results": result.get("raw_search_results", []),
-        "evidence_extracted": result.get("evidence_extracted", []),
-        "conflicts_analysis": result.get("conflicts_analysis", []),
-        "degraded": result.get("degraded", False),
-        "retry_history": result.get("retry_history", []),
-    }
-
-
-# for local testing / backwards compatibility
 def graph_executor(query: str, thread_id: str):
     """Synchronous wrapper – useful for the __main__ block and quick tests."""
     final = None

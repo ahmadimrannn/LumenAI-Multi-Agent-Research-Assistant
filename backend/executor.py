@@ -1,8 +1,10 @@
 import uuid
 from dotenv import load_dotenv
-from typing import Generator, Optional, Any
+from typing import Generator, Any
 
 from config.database_config import checkpointer
+
+from langchain_core.messages import BaseMessage
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
@@ -121,14 +123,28 @@ def _build_initial_state(query: str) -> dict:
     }
 
 
+def serialize_messages(messages: list) -> list[dict]:
+    """Convert LangChain message objects into plain dicts that can be JSON serialized."""
+    serialized = []
+    for msg in messages:
+        if isinstance(msg, BaseMessage):
+            serialized.append({
+                "type": msg.__class__.__name__,
+                "content": msg.content,
+                "additional_kwargs": getattr(msg, "additional_kwargs", {}),
+                "id": getattr(msg, "id", None),
+            })
+        elif isinstance(msg, dict):
+            serialized.append(msg)
+        else:
+            # fallback
+            serialized.append({"content": str(msg)})
+    return serialized
+
+
 def graph_executor_stream(
     query: str, thread_id: str
 ) -> Generator[dict[str, Any], None, None]:
-    """
-    Production-hardened streaming version.
-    Yields node updates + final completed/interrupted event.
-    Never lets an exception kill the connection silently.
-    """
     config = {"configurable": {"thread_id": thread_id}}
 
     try:
@@ -143,7 +159,6 @@ def graph_executor_stream(
         else:
             input_state = _build_initial_state(query)
 
-        # Stream node-by-node updates
         for event in graph.stream(
             input_state,
             config=config,
@@ -155,10 +170,9 @@ def graph_executor_stream(
                 "data": event,
             }
 
-        # After stream finishes, check final state
         final_state = graph.get_state(config)
 
-        if final_state.next:  # still has pending nodes → interrupt
+        if final_state.next:
             interrupt_value = None
             if final_state.tasks:
                 for task in final_state.tasks:
@@ -174,6 +188,10 @@ def graph_executor_stream(
             }
         else:
             values = final_state.values or {}
+
+            raw_messages = values.get("messages", [])
+            safe_messages = serialize_messages(raw_messages)
+
             yield {
                 "type": "completed",
                 "status": "completed",
@@ -182,7 +200,7 @@ def graph_executor_stream(
                 "requires_external_research": values.get("requires_external_research"),
                 "knowledge_source": values.get("knowledge_source"),
                 "termination_reason": values.get("termination_reason", ""),
-                "messages": values.get("messages", []),
+                "messages": safe_messages,                    # ← fixed
                 "search_results": values.get("search_results", []),
                 "raw_search_results": values.get("raw_search_results", []),
                 "evidence_extracted": values.get("evidence_extracted", []),
@@ -192,9 +210,8 @@ def graph_executor_stream(
             }
 
     except Exception as e:
-        # Never let an exception silently close the SSE connection
         tb = traceback.format_exc()
-        print("STREAM ERROR:", tb)  # still logs on Railway
+        print("STREAM ERROR:", tb)
         yield {
             "type": "error",
             "status": "error",
@@ -209,10 +226,6 @@ def resume_graph(
     action: str,
     edited_query: str | None = None,
 ):
-    """
-    Resume a paused (interrupted) graph.
-    Kept synchronous and almost identical to your original implementation.
-    """
     config = {"configurable": {"thread_id": thread_id}}
 
     resume_payload: dict[str, Any] = {"action": action}
@@ -228,12 +241,15 @@ def resume_graph(
             "thread_id": thread_id,
         }
 
+    raw_messages = result.get("messages", [])
+    safe_messages = serialize_messages(raw_messages)
+
     return {
         "status": "completed",
         "response": result.get("findings", ""),
         "requires_external_research": result.get("requires_external_research"),
         "knowledge_source": result.get("knowledge_source"),
-        "messages": result.get("messages", []),
+        "messages": safe_messages,                    # ← fixed
         "termination_reason": result.get("termination_reason", ""),
         "search_results": result.get("search_results", []),
         "raw_search_results": result.get("raw_search_results", []),

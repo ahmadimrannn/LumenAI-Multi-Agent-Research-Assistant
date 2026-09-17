@@ -19,14 +19,17 @@ app = FastAPI()
 router = APIRouter()
 
 # --- Fixed CORS Configuration ---
-_allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*")
-origins_list = [o.strip() for o in _allowed_origins.split(",") if o.strip()]
+# --- Fixed CORS Configuration for credentials: 'include' ---
+ALLOWED_ORIGINS = os.environ.get(
+    "ALLOWED_ORIGINS", 
+    "http://localhost:3000,http://127.0.0.1:3000"
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins_list if origins_list else ["*"],
+    allow_origins=[o.strip() for o in ALLOWED_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["X-Thread-Id", "Content-Type"],
 )

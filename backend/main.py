@@ -2,7 +2,7 @@ import os
 import uuid
 import json
 import asyncio
-from typing import Optional, Callable, Generator, Any
+from typing import Optional, Callable, Generator, AsyncGenerator, Any
 
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -18,16 +18,18 @@ from auth.security import get_current_user_id
 app = FastAPI()
 router = APIRouter()
 
-# --- Fixed CORS Configuration ---
-# --- Fixed CORS Configuration for credentials: 'include' ---
+# --- CORS Configuration ---
 ALLOWED_ORIGINS = os.environ.get(
     "ALLOWED_ORIGINS", 
-    "http://localhost:3000,http://127.0.0.1:3000"
+    "http://localhost:3000"
 )
+
+# Strip trailing slashes from origins to prevent browser CORS preflight mismatches
+parsed_origins = [o.strip().rstrip("/") for o in ALLOWED_ORIGINS.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in ALLOWED_ORIGINS.split(",") if o.strip()],
+    allow_origins=parsed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -55,36 +57,36 @@ async def verify_or_create_thread_ownership(
     Returns the validated or newly created thread_id.
     """
     async with pool.connection() as conn:
-        async with conn.cursor() as cur:
-            if thread_id:
-                await cur.execute(
-                    "SELECT user_id FROM chat_sessions WHERE thread_id = %s;",
-                    (thread_id,)
-                )
-                row = await cur.fetchone()
-                if row is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="Requested thread session does not exist."
+        async with conn.transaction():
+            async with conn.cursor() as cur:
+                if thread_id:
+                    await cur.execute(
+                        "SELECT user_id FROM chat_sessions WHERE thread_id = %s;",
+                        (thread_id,)
                     )
-                if row[0] != user_id:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Access denied: You do not own this research session."
+                    row = await cur.fetchone()
+                    if row is None:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Requested thread session does not exist."
+                        )
+                    if row[0] != user_id:
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Access denied: You do not own this research session."
+                        )
+                    return thread_id
+                else:
+                    new_thread_id = str(uuid.uuid4())
+                    title_preview = (initial_query[:45] + "...") if len(initial_query) > 45 else initial_query
+                    await cur.execute(
+                        """
+                        INSERT INTO chat_sessions (id, thread_id, user_id, title)
+                        VALUES (%s, %s, %s, %s);
+                        """,
+                        (str(uuid.uuid4()), new_thread_id, user_id, title_preview or "New Research")
                     )
-                return thread_id
-            else:
-                new_thread_id = str(uuid.uuid4())
-                title_preview = (initial_query[:45] + "...") if len(initial_query) > 45 else initial_query
-                await cur.execute(
-                    """
-                    INSERT INTO chat_sessions (id, thread_id, user_id, title)
-                    VALUES (%s, %s, %s, %s);
-                    """,
-                    (str(uuid.uuid4()), new_thread_id, user_id, title_preview or "New Research")
-                )
-                await conn.commit()
-                return new_thread_id
+                    return new_thread_id
 
 def _sse_stream(
     generator_factory: Callable[[], Generator[dict[str, Any], None, None]],
@@ -179,7 +181,6 @@ async def get_user_sessions(user_id: str = Depends(get_current_user_id)):
 async def get_session_messages(thread_id: str, user_id: str = Depends(get_current_user_id)):
     """Fetches chat history messages for a specific session."""
     await verify_or_create_thread_ownership(user_id=user_id, thread_id=thread_id)
-    # Return messages from persistent checkpointer or message store
     return {"messages": [], "thread_id": thread_id}
 
 @router.post("/research")
@@ -239,12 +240,17 @@ async def resume_research(
 
 # --- Public Endpoints ---
 @app.get("/health")
-def health_check():
+async def health_check():
     try:
-        with pool.connection() as conn:
-            conn.execute("SELECT 1")
+        async with pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("SELECT 1")
         return {"status": "ok", "db": "reachable"}
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"db unreachable: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
+            detail=f"DB unreachable: {str(e)}"
+        )
 
+# Register router after middleware to guarantee CORS handling across all routes
 app.include_router(router)

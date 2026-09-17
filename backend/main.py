@@ -2,6 +2,7 @@ import os
 import uuid
 import json
 import asyncio
+from contextlib import asynccontextmanager
 from typing import Optional, Callable, Generator, AsyncGenerator, Any
 
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, status
@@ -12,10 +13,18 @@ from pydantic import BaseModel
 from executor import graph_executor_stream
 from resume_graph import resume_graph_stream
 from event_logger import log_event
-from config.database_config import pool
+from config.database_config import async_pool
 from auth.security import get_current_user_id
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await async_pool.open(wait=False)
+    yield
+    await async_pool.close()
+
+
+app = FastAPI(lifespan=lifespan)
 router = APIRouter()
 
 # --- CORS Configuration ---
@@ -56,7 +65,7 @@ async def verify_or_create_thread_ownership(
     Guarantees thread ownership before touching LangGraph state.
     Returns the validated or newly created thread_id.
     """
-    async with pool.connection() as conn:
+    async with async_pool.connection() as conn:
         async with conn.transaction():
             async with conn.cursor() as cur:
                 if thread_id:
@@ -155,7 +164,7 @@ def _sse_stream(
 @router.get("/sessions")
 async def get_user_sessions(user_id: str = Depends(get_current_user_id)):
     sessions = []
-    async with pool.connection() as conn:
+    async with async_pool.connection() as conn:
         async with conn.transaction():
             async with conn.cursor() as cur:
                 await cur.execute("SET LOCAL app.current_user_id = %s;", (user_id,))
@@ -242,7 +251,7 @@ async def resume_research(
 @app.get("/health")
 async def health_check():
     try:
-        async with pool.connection() as conn:
+        async with async_pool.connection() as conn:
             async with conn.cursor() as cur:
                 await cur.execute("SELECT 1")
         return {"status": "ok", "db": "reachable"}

@@ -6,7 +6,8 @@ import uuid
 import json
 import asyncio
 
-from executor import graph_executor_stream, resume_graph
+from executor import graph_executor_stream
+from resume_graph import resume_graph
 from event_logger import log_event
 from config.database_config import pool
 

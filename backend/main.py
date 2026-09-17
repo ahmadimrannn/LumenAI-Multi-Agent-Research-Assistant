@@ -79,7 +79,7 @@ async def verify_or_create_thread_ownership(
                             status_code=status.HTTP_404_NOT_FOUND,
                             detail="Requested thread session does not exist."
                         )
-                    if row[0] != user_id:
+                    if row["user_id"] != user_id:
                         raise HTTPException(
                             status_code=status.HTTP_403_FORBIDDEN,
                             detail="Access denied: You do not own this research session."
@@ -167,7 +167,7 @@ async def get_user_sessions(user_id: str = Depends(get_current_user_id)):
     async with async_pool.connection() as conn:
         async with conn.transaction():
             async with conn.cursor() as cur:
-                await cur.execute("SET LOCAL app.current_user_id = %s;", (user_id,))
+                await cur.execute("SELECT set_config('app.current_user_id', %s, true);", (user_id,))
                 await cur.execute(
                     """
                     SELECT id, thread_id, title, created_at, updated_at 
@@ -178,11 +178,11 @@ async def get_user_sessions(user_id: str = Depends(get_current_user_id)):
                 rows = await cur.fetchall()
                 for row in rows:
                     sessions.append({
-                        "id": str(row[0]),
-                        "thread_id": row[1],
-                        "title": row[2],
-                        "created_at": row[3].isoformat(),
-                        "updated_at": row[4].isoformat()
+                        "id": str(row["id"]),
+                        "thread_id": row["thread_id"],
+                        "title": row["title"],
+                        "created_at": row["created_at"].isoformat(),
+                        "updated_at": row["updated_at"].isoformat()
                     })
     return {"sessions": sessions}
 

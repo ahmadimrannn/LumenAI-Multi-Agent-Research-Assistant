@@ -120,16 +120,7 @@ export default function ChatPage() {
         loadHistory();
     }, [activeSessionId, currentUser]);
 
-    // 3. Execute pending query upon authenticating
-    useEffect(() => {
-        if (!authChecked || !currentUser || !pendingQuery) return;
-
-        const queryToSubmit = pendingQuery;
-        clearPendingQuery();
-        executeTurn({ query: queryToSubmit, forceNew: true });
-    }, [authChecked, currentUser, pendingQuery]);
-
-    // 4. Auto scroll down on new turns or step updates
+    // 3. Auto scroll down on new turns or step updates
     useEffect(() => {
         turnsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [activeTurns, isLoadingHistory]);
@@ -273,6 +264,15 @@ export default function ChatPage() {
             },
         });
     };
+
+    // Execute a query that was held back while the user signed in.
+    useEffect(() => {
+        if (!authChecked || !currentUser || !pendingQuery) return;
+
+        const queryToSubmit = pendingQuery;
+        clearPendingQuery();
+        executeTurn({ query: queryToSubmit, forceNew: true });
+    }, [authChecked, currentUser, pendingQuery]);
 
     const handleSend = async () => {
         if (!inputQuery.trim()) return;

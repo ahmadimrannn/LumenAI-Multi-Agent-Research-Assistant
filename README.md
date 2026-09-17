@@ -127,7 +127,7 @@ cd lumen/backend
 uv add -r requirements.txt
 # set GROQ_API_KEY, GEMINI_API_KEY, and DB connection details in .env
 python executor.py        # interactive CLI run
-uvicorn main:app --reload # API server
+python run.py             # API server (on Linux/macOS: uvicorn main:app --reload)
 ```
 
 Run the eval suite:

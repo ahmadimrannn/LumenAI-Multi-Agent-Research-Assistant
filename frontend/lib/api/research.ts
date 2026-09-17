@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { authClient } from '@/lib/auth/client';
-import { apiFetch } from './client';
+import { apiFetch, getAuthToken } from './client';
 
 export interface StreamResearchOptions {
     query?: string;
@@ -21,9 +20,8 @@ export async function streamResearch({
     onError,
 }: StreamResearchOptions) {
     try {
-        // Retrieve current auth session token dynamically
-        const session = await authClient.getSession();
-        const token = session?.data?.session?.token;
+        // The backend only accepts the signed JWT, not Better Auth's opaque session id.
+        const token = await getAuthToken();
 
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 

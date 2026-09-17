@@ -40,6 +40,7 @@ async_pool = AsyncConnectionPool(
   open=False,
 )
 
+
 # Initialize LangGraph Postgres Checkpointer
 checkpointer = PostgresSaver(pool, serde=JsonPlusSerializer())
 

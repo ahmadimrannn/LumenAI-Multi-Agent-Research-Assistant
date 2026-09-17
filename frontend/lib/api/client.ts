@@ -1,9 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { authClient } from '@/lib/auth/client';
 
-// Sanitize base URL by stripping any trailing slash
 const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_BASE_URL = RAW_API_URL.replace(/\/$/, '');
+
+/**
+ * The backend verifies a JWT against Neon Auth's JWKS. Better Auth's session
+ * token is an opaque id, so the signed JWT has to be minted at /token.
+ */
+export async function getAuthToken(): Promise<string | null> {
+    const res = await authClient.$fetch<{ token: string }>('/token');
+    if (res.error) {
+        console.error('[getAuthToken] Could not mint a backend token:', res.error.message);
+        return null;
+    }
+    return res.data?.token ?? null;
+}
 
 export async function apiFetch<T = any>(
     endpoint: string, 
@@ -14,8 +26,7 @@ export async function apiFetch<T = any>(
     const targetUrl = `${API_BASE_URL}${cleanEndpoint}`;
 
     // 1. Retrieve the active session token dynamically
-    const session = await authClient.getSession();
-    const token = session?.data?.session?.token;
+    const token = await getAuthToken();
 
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',

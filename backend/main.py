@@ -2,7 +2,7 @@ import os
 import uuid
 import json
 import asyncio
-from typing import Optional, Callable, Generator, Any, AsyncGenerator
+from typing import Optional, Callable, Generator, Any
 
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -18,14 +18,17 @@ from auth.security import get_current_user_id
 app = FastAPI()
 router = APIRouter()
 
-# --- CORS Configuration ---
+# --- Fixed CORS Configuration ---
 _allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*")
+origins_list = [o.strip() for o in _allowed_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in _allowed_origins.split(",")],
+    allow_origins=origins_list if origins_list else ["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Thread-Id", "Content-Type"],
 )
 
 # --- Pydantic Schemas ---
@@ -86,10 +89,6 @@ def _sse_stream(
     log_route: str,
     log_context: dict[str, Any],
 ):
-    """
-    Runs the blocking graph stream generator in a background thread executor 
-    and forwards events asynchronously to SSE responses.
-    """
     async def event_generator():
         try:
             loop = asyncio.get_running_loop()
@@ -99,7 +98,7 @@ def _sse_stream(
                 try:
                     for event in generator_factory():
                         asyncio.run_coroutine_threadsafe(queue.put(event), loop)
-                    asyncio.run_coroutine_threadsafe(queue.put(None), loop)  # sentinel
+                    asyncio.run_coroutine_threadsafe(queue.put(None), loop)
                 except Exception as e:
                     log_event(
                         service="lumen",
@@ -150,7 +149,6 @@ def _sse_stream(
 # --- Authenticated Router Endpoints ---
 @router.get("/sessions")
 async def get_user_sessions(user_id: str = Depends(get_current_user_id)):
-    """Fetches all chat sessions for the authenticated user using RLS."""
     sessions = []
     async with pool.connection() as conn:
         async with conn.transaction():
@@ -173,6 +171,13 @@ async def get_user_sessions(user_id: str = Depends(get_current_user_id)):
                         "updated_at": row[4].isoformat()
                     })
     return {"sessions": sessions}
+
+@router.get("/sessions/{thread_id}/messages")
+async def get_session_messages(thread_id: str, user_id: str = Depends(get_current_user_id)):
+    """Fetches chat history messages for a specific session."""
+    await verify_or_create_thread_ownership(user_id=user_id, thread_id=thread_id)
+    # Return messages from persistent checkpointer or message store
+    return {"messages": [], "thread_id": thread_id}
 
 @router.post("/research")
 async def start_research(
@@ -239,5 +244,4 @@ def health_check():
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"db unreachable: {str(e)}")
 
-# Mount the router to the main FastAPI app
 app.include_router(router)

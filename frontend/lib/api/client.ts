@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { authClient } from '@/lib/auth/client';
 
 const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_BASE_URL = RAW_API_URL.replace(/\/$/, '');
@@ -9,12 +8,10 @@ const API_BASE_URL = RAW_API_URL.replace(/\/$/, '');
  * token is an opaque id, so the signed JWT has to be minted at /token.
  */
 export async function getAuthToken(): Promise<string | null> {
-    const res = await authClient.$fetch<{ token: string }>('/token');
-    if (res.error) {
-        console.error('[getAuthToken] Could not mint a backend token:', res.error.message);
-        return null;
-    }
-    return res.data?.token ?? null;
+    const res = await fetch('/api/auth/token', { credentials: 'include' });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return data?.token ?? null;
 }
 
 export async function apiFetch<T = any>(

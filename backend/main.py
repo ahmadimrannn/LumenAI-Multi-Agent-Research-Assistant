@@ -1,4 +1,5 @@
 import os
+import sys
 import uuid
 import json
 import asyncio
@@ -15,6 +16,12 @@ from resume_graph import resume_graph_stream
 from event_logger import log_event
 from config.database_config import async_pool
 from auth.security import get_current_user_id
+
+# Agents print LLM output containing characters outside Windows' default cp1252
+# stdout encoding, which would raise UnicodeEncodeError mid-graph.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
 
 
 @asynccontextmanager

@@ -1,19 +1,29 @@
+import os
+import uuid
+import json
+import asyncio
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Callable, Generator, Any
-import os
-import uuid
-import json
-import asyncio
 
 from executor import graph_executor_stream
 from resume_graph import resume_graph_stream
 from event_logger import log_event
 from config.database_config import pool
 
+from typing import AsyncGenerator, Optional
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+
+from auth.security import get_current_user_id
+from config.database_config import pool # Your existing psycopg3 pool
+
+
 app = FastAPI()
+router = APIRouter()
 
 _allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*")
 app.add_middleware(
@@ -34,6 +44,138 @@ class ResumeRequest(BaseModel):
     thread_id: str
     action: str
     edited_query: Optional[str] = None
+
+
+@router.get("/sessions")
+async def get_user_sessions(user_id: str = Depends(get_current_user_id)):
+    """
+    Fetches all chat sessions for the authenticated user using RLS.
+    """
+    sessions = []
+    async with pool.connection() as conn:
+        # Open an explicit transaction block so SET LOCAL stays strictly isolated
+        async with conn.transaction():
+            async with conn.cursor() as cur:
+                # Set local session variable safely for this transaction only
+                await cur.execute("SET LOCAL app.current_user_id = %s;", (user_id,))
+                
+                # Query through RLS evaluation
+                await cur.execute(
+                    """
+                    SELECT id, thread_id, title, created_at, updated_at 
+                    FROM chat_sessions 
+                    ORDER BY updated_at DESC;
+                    """
+                )
+                rows = await cur.fetchall()
+                for row in rows:
+                    sessions.append({
+                        "id": str(row[0]),
+                        "thread_id": row[1],
+                        "title": row[2],
+                        "created_at": row[3].isoformat(),
+                        "updated_at": row[4].isoformat()
+                    })
+    return {"sessions": sessions}
+
+async def verify_or_create_thread_ownership(user_id: str, thread_id: Optional[str], initial_query: str = "") -> str:
+    """
+    Guarantees thread ownership before touching LangGraph state.
+    Returns the validated or newly created thread_id.
+    """
+    async with pool.connection() as conn:
+        async with conn.cursor() as cur:
+            if thread_id:
+                # Check explicit ownership
+                await cur.execute(
+                    "SELECT user_id FROM chat_sessions WHERE thread_id = %s;",
+                    (thread_id,)
+                )
+                row = await cur.fetchone()
+                if row is None:
+                    # Thread ID passed does not exist
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Requested thread session does not exist."
+                    )
+                if row[0] != user_id:
+                    # User ID doesn't match owner - Block access explicitly
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Access denied: You do not own this research session."
+                    )
+                return thread_id
+            else:
+                # Generate new user-scoped thread ID and register ownership
+                new_thread_id = str(uuid.uuid4())
+                title_preview = (initial_query[:45] + "...") if len(initial_query) > 45 else initial_query
+                await cur.execute(
+                    """
+                    INSERT INTO chat_sessions (id, thread_id, user_id, title)
+                    VALUES (%s, %s, %s, %s);
+                    """,
+                    (str(uuid.uuid4()), new_thread_id, user_id, title_preview or "New Research")
+                )
+                await conn.commit()
+                return new_thread_id
+
+@router.post("/research")
+async def start_research(
+    body: ResearchRequest,
+    user_id: str = Depends(get_current_user_id)
+):
+    # Verify ownership before invoking LangGraph stream
+    validated_thread_id = await verify_or_create_thread_ownership(
+        user_id=user_id, 
+        thread_id=body.thread_id, 
+        initial_query=body.query
+    )
+
+    # Prefix thread_id inside LangGraph config to prevent cross-tenant key collisons
+    user_scoped_thread = f"{user_id}::{validated_thread_id}"
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        try:
+            async for event in graph_executor_stream(
+                query=body.query, 
+                thread_id=user_scoped_thread
+            ):
+                yield f"data: {json.dumps(event)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as err:
+            err_data = json.dumps({"event": "error", "message": str(err)})
+            yield f"data: {err_data}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.post("/research/resume")
+async def resume_research(
+    body: ResumeRequest,
+    user_id: str = Depends(get_current_user_id)
+):
+    # Enforce thread_id ownership check on resume
+    validated_thread_id = await verify_or_create_thread_ownership(
+        user_id=user_id, 
+        thread_id=body.thread_id
+    )
+
+    user_scoped_thread = f"{user_id}::{validated_thread_id}"
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        try:
+            async for event in resume_graph_stream(
+                thread_id=user_scoped_thread,
+                action=body.action,
+                edited_query=body.edited_query
+            ):
+                yield f"data: {json.dumps(event)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as err:
+            err_data = json.dumps({"event": "error", "message": str(err)})
+            yield f"data: {err_data}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @app.get("/health")

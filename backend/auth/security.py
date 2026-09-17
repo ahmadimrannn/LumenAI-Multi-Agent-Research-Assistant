@@ -11,17 +11,32 @@ NEON_JWKS_URL = os.getenv("NEON_AUTH_JWKS_URL")
 
 class CachedJWKSClient:
     """Caches JWKS keys to avoid querying Neon Auth on every incoming request."""
-    def __init__(self, jwks_url: str, cache_ttl_seconds: int = 3600):
+    def __init__(self, jwks_url: str | None, cache_ttl_seconds: int = 3600):
         self.jwks_url = jwks_url
         self.cache_ttl_seconds = cache_ttl_seconds
         self.last_fetch = 0
-        self.jwk_client = PyJWKClient(jwks_url)
+        self.jwk_client: PyJWKClient | None = None
 
     def get_signing_key(self, token: str):
-        # Refresh client cache if TTL expired
-        if time.time() - self.last_fetch > self.cache_ttl_seconds:
-            self.jwk_client = PyJWKClient(self.jwks_url)
-            self.last_fetch = time.time()
+        # Retrieve or refresh JWKS URL dynamically if missing at module import
+        url = self.jwks_url or os.getenv("NEON_AUTH_JWKS_URL")
+        if not url:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="NEON_AUTH_JWKS_URL environment variable is not set.",
+            )
+
+        # Lazy initialize or refresh client cache if TTL expired
+        if self.jwk_client is None or (time.time() - self.last_fetch > self.cache_ttl_seconds):
+            try:
+                self.jwk_client = PyJWKClient(url)
+                self.last_fetch = time.time()
+            except Exception as err:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to initialize JWKS Client from URL: {str(err)}",
+                )
+
         return self.jwk_client.get_signing_key_from_jwt(token)
 
 jwks_cache = CachedJWKSClient(NEON_JWKS_URL)

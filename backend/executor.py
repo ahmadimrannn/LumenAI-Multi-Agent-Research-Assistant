@@ -90,7 +90,6 @@ def build_graph():
     graph = graph_builder.compile(checkpointer=checkpointer)
     return graph
 
-
 graph = build_graph()
 
 

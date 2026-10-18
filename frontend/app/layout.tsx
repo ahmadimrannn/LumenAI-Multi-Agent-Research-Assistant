@@ -1,39 +1,42 @@
-import type { Metadata } from "next";
-import { Geist, Inter } from "next/font/google";
-import { TooltipProvider } from "@/components/ui/tooltip"
-import { ThemeProvider } from "@/components/theme-provider";
-import "./globals.css";
+import type { Metadata } from "next"
+import { Manrope, Geist } from "next/font/google"
+import { auth } from "@/auth"
+import { Providers } from "@/components/providers"
+import "./globals.css"
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+  display: "swap",
+})
 
 const geist = Geist({
-    variable: "--font-geist",
-    subsets: ["latin"],
-});
-
-const inter = Inter({
-    variable: "--font-inter",
-    subsets: ["latin"],
-});
-
+  subsets: ["latin"],
+  variable: "--font-geist",
+  display: "swap",
+})
 
 export const metadata: Metadata = {
-    title: "Lumen - Multi Agent Research Assistant",
-    description: "A multi agent research assitant",
-};
+  title: "Lumen",
+  description: "Research agent that investigates topics, checks sources, and writes reports.",
+}
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
-    return (
-        <html
-            lang="en"
-            className={`${geist.variable} ${inter.variable} h-full antialiased`}
-            suppressHydrationWarning
-        >
-            <body className="min-h-full flex flex-col" suppressHydrationWarning>
-                <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-                    <TooltipProvider>
-                        {children}
-                    </TooltipProvider>
-                </ThemeProvider>
-            </body>
-        </html>
-    );
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const session = await auth()
+
+  return (
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${manrope.variable} ${geist.variable}`}
+    >
+      <body className="font-sans antialiased bg-background text-foreground">
+        <Providers session={session}>{children}</Providers>
+      </body>
+    </html>
+  )
 }

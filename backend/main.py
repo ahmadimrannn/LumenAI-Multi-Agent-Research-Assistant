@@ -4,9 +4,9 @@ import uuid
 import json
 import asyncio
 from contextlib import asynccontextmanager
-from typing import Optional, Callable, Generator, AsyncGenerator, Any
+from typing import Optional, Callable, Generator, Any
 
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -14,8 +14,9 @@ from pydantic import BaseModel
 from executor import graph_executor_stream
 from resume_graph import resume_graph_stream
 from event_logger import log_event
-from config.database_config import async_pool
-from auth.security import get_current_user_id
+from config.database_config import pool
+from auth_dependency import get_verified_user_id
+from db_helpers import user_scoped_connection, check_or_create_thread_ownership
 
 # Agents print LLM output containing characters outside Windows' default cp1252
 # stdout encoding, which would raise UnicodeEncodeError mid-graph.
@@ -24,15 +25,7 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await async_pool.open(wait=False)
-    yield
-    await async_pool.close()
-
-
-app = FastAPI(lifespan=lifespan)
-router = APIRouter()
+app = FastAPI()
 
 # --- CORS Configuration ---
 ALLOWED_ORIGINS = os.environ.get(
@@ -46,9 +39,9 @@ parsed_origins = [o.strip().rstrip("/") for o in ALLOWED_ORIGINS.split(",") if o
 app.add_middleware(
     CORSMiddleware,
     allow_origins=parsed_origins,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type"],
     expose_headers=["X-Thread-Id", "Content-Type"],
 )
 
@@ -62,47 +55,6 @@ class ResumeRequest(BaseModel):
     action: str
     edited_query: Optional[str] = None
 
-# --- Helper Functions ---
-async def verify_or_create_thread_ownership(
-    user_id: str, 
-    thread_id: Optional[str], 
-    initial_query: str = ""
-) -> str:
-    """
-    Guarantees thread ownership before touching LangGraph state.
-    Returns the validated or newly created thread_id.
-    """
-    async with async_pool.connection() as conn:
-        async with conn.transaction():
-            async with conn.cursor() as cur:
-                if thread_id:
-                    await cur.execute(
-                        "SELECT user_id FROM chat_sessions WHERE thread_id = %s;",
-                        (thread_id,)
-                    )
-                    row = await cur.fetchone()
-                    if row is None:
-                        raise HTTPException(
-                            status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Requested thread session does not exist."
-                        )
-                    if row["user_id"] != user_id:
-                        raise HTTPException(
-                            status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Access denied: You do not own this research session."
-                        )
-                    return thread_id
-                else:
-                    new_thread_id = str(uuid.uuid4())
-                    title_preview = (initial_query[:45] + "...") if len(initial_query) > 45 else initial_query
-                    await cur.execute(
-                        """
-                        INSERT INTO chat_sessions (id, thread_id, user_id, title)
-                        VALUES (%s, %s, %s, %s);
-                        """,
-                        (str(uuid.uuid4()), new_thread_id, user_id, title_preview or "New Research")
-                    )
-                    return new_thread_id
 
 def _sse_stream(
     generator_factory: Callable[[], Generator[dict[str, Any], None, None]],
@@ -167,65 +119,55 @@ def _sse_stream(
         },
     )
 
-# --- Authenticated Router Endpoints ---
-@router.get("/sessions")
-async def get_user_sessions(user_id: str = Depends(get_current_user_id)):
-    sessions = []
-    async with async_pool.connection() as conn:
-        async with conn.transaction():
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT set_config('app.current_user_id', %s, true);", (user_id,))
-                await cur.execute(
-                    """
-                    SELECT id, thread_id, title, created_at, updated_at 
-                    FROM chat_sessions 
-                    ORDER BY updated_at DESC;
-                    """
-                )
-                rows = await cur.fetchall()
-                for row in rows:
-                    sessions.append({
-                        "id": str(row["id"]),
-                        "thread_id": row["thread_id"],
-                        "title": row["title"],
-                        "created_at": row["created_at"].isoformat(),
-                        "updated_at": row["updated_at"].isoformat()
-                    })
-    return {"sessions": sessions}
 
-@router.get("/sessions/{thread_id}/messages")
-async def get_session_messages(thread_id: str, user_id: str = Depends(get_current_user_id)):
-    """Fetches chat history messages for a specific session."""
-    await verify_or_create_thread_ownership(user_id=user_id, thread_id=thread_id)
-    return {"messages": [], "thread_id": thread_id}
+# --- Authenticated Endpoints ---
+@app.get("/sessions")
+async def list_sessions(user_id: str = Depends(get_verified_user_id)):
+    with user_scoped_connection(user_id) as conn:
+        rows = conn.execute(
+            "SELECT thread_id, title, created_at, updated_at "
+            "FROM chat_sessions WHERE user_id = %s ORDER BY updated_at DESC",
+            (user_id,),
+        ).fetchall()
 
-@router.post("/research")
+    return {
+        "sessions": [
+            {
+                "id": r["thread_id"] if isinstance(r, dict) else r[0],
+                "title": r["title"] if isinstance(r, dict) else r[1],
+                "createdAt": (r["created_at"] if isinstance(r, dict) else r[2]).isoformat(),
+                "updatedAt": (r["updated_at"] if isinstance(r, dict) else r[3]).isoformat(),
+            }
+            for r in rows
+        ]
+    }
+
+
+@app.post("/research")
 async def start_research(
     body: ResearchRequest,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_verified_user_id),
 ):
-    if not body.query.strip():
+    if not body.query or not body.query.strip():
         raise HTTPException(status_code=400, detail="Can't fetch results without a query.")
 
-    validated_thread_id = await verify_or_create_thread_ownership(
-        user_id=user_id, 
-        thread_id=body.thread_id, 
-        initial_query=body.query
-    )
+    thread_id = body.thread_id or str(uuid.uuid4())
 
-    user_scoped_thread = f"{user_id}::{validated_thread_id}"
+    with user_scoped_connection(user_id) as conn:
+        check_or_create_thread_ownership(conn, thread_id, user_id, body.query)
 
     return _sse_stream(
-        generator_factory=lambda: graph_executor_stream(query=body.query, thread_id=user_scoped_thread),
-        thread_id=validated_thread_id,
+        generator_factory=lambda: graph_executor_stream(query=body.query, thread_id=thread_id),
+        thread_id=thread_id,
         log_route="/research",
-        log_context={"query": body.query, "user_id": user_id, "thread_id": validated_thread_id},
+        log_context={"query": body.query, "user_id": user_id, "thread_id": thread_id},
     )
 
-@router.post("/research/resume")
+
+@app.post("/research/resume")
 async def resume_research(
     body: ResumeRequest,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_verified_user_id),
 ):
     if body.action not in {"approve", "reject", "edit"}:
         raise HTTPException(status_code=400, detail="Invalid Action")
@@ -236,37 +178,30 @@ async def resume_research(
             detail="edited_query is required when action = 'edit'.",
         )
 
-    validated_thread_id = await verify_or_create_thread_ownership(
-        user_id=user_id, 
-        thread_id=body.thread_id
-    )
-
-    user_scoped_thread = f"{user_id}::{validated_thread_id}"
+    with user_scoped_connection(user_id) as conn:
+        check_or_create_thread_ownership(conn, body.thread_id, user_id, body.edited_query or "")
 
     return _sse_stream(
         generator_factory=lambda: resume_graph_stream(
-            thread_id=user_scoped_thread,
+            thread_id=body.thread_id,
             action=body.action,
             edited_query=body.edited_query,
         ),
-        thread_id=validated_thread_id,
+        thread_id=body.thread_id,
         log_route="/research/resume",
-        log_context={"user_id": user_id, "thread_id": validated_thread_id, "action": body.action},
+        log_context={"user_id": user_id, "thread_id": body.thread_id, "action": body.action},
     )
+
 
 # --- Public Endpoints ---
 @app.get("/health")
 async def health_check():
     try:
-        async with async_pool.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT 1")
+        with pool.connection() as conn:
+            conn.execute("SELECT 1")
         return {"status": "ok", "db": "reachable"}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
             detail=f"DB unreachable: {str(e)}"
         )
-
-# Register router after middleware to guarantee CORS handling across all routes
-app.include_router(router)

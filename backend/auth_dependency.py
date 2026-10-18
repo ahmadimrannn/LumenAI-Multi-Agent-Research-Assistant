@@ -22,6 +22,7 @@ async def get_verified_user_id(authorization: str | None = Header(default=None))
             audience=_AUDIENCE,
             issuer=_ISSUER,
             options={"require": ["exp", "sub", "iss", "aud"]},
+            leeway=60,
         )
     except jwt.PyJWTError as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {e}")

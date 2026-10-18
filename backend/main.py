@@ -28,22 +28,14 @@ for _stream in (sys.stdout, sys.stderr):
 app = FastAPI()
 
 # --- CORS Configuration ---
-ALLOWED_ORIGINS = os.environ.get(
-    "ALLOWED_ORIGINS", 
-    "http://localhost:3000"
-)
-
-# Strip trailing slashes from origins to prevent browser CORS preflight mismatches
-parsed_origins = [o.strip().rstrip("/") for o in ALLOWED_ORIGINS.split(",") if o.strip()]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=parsed_origins,
+    allow_origins=[o.strip() for o in os.environ["ALLOWED_ORIGINS"].split(",") if o.strip()],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
-    expose_headers=["X-Thread-Id", "Content-Type"],
 )
+
 
 # --- Pydantic Schemas ---
 class ResearchRequest(BaseModel):

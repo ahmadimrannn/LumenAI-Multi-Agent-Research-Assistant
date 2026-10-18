@@ -1,5 +1,5 @@
 import { useChatStore, NEW_CHAT_KEY } from "@/store/chat-store"
-import { apiFetch, fetchSessions, AuthRequiredError } from "@/lib/api"
+import { apiFetch, fetchSessions, AuthRequiredError, TokenError, NetworkError } from "@/lib/api"
 import { readEvents } from "@/lib/sse"
 import type { LumenEvent, Turn } from "@/lib/types"
 
@@ -119,8 +119,16 @@ async function runTurn(userId: string, sessionKey: string, turnId: string, run: 
     } else if (controller.signal.aborted) {
       if (run.kind === "resume") store().updateTurn(key, turnId, { status: "interrupted", errorMessage: "Stopped." })
       else store().updateTurn(key, turnId, { status: "stopped" })
+    } else if (err instanceof TokenError) {
+      const details = process.env.NODE_ENV !== "production" ? ` Details: TokenError (status ${err.status ?? "network"})` : ""
+      fail(`Could not start a secure session. Reload the page and sign in again.${details}`)
+    } else if (err instanceof NetworkError) {
+      const details = process.env.NODE_ENV !== "production" ? ` Details: NetworkError at ${err.url}` : ""
+      fail(`Could not reach the server. Check your connection and try again.${details}`)
     } else {
-      fail("Could not reach the server. Check your connection and try again.")
+      console.error("[lumen] unexpected error", err)
+      const details = process.env.NODE_ENV !== "production" && err instanceof Error ? ` Details: ${err.message}` : ""
+      fail(`Something unexpected went wrong.${details}`)
     }
   } finally {
     store().releaseController(turnId)

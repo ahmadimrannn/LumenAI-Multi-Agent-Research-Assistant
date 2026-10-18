@@ -19,6 +19,9 @@ const geist = Geist({
 export const metadata: Metadata = {
   title: "Lumen",
   description: "Research agent that investigates topics, checks sources, and writes reports.",
+  icons: {
+    icon: "/logo.png",
+  },
 }
 
 export default async function RootLayout({

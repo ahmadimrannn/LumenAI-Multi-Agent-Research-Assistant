@@ -1,14 +1,15 @@
-export function LumenMark({ className = "size-4 text-primary" }: { className?: string }) {
+import Image from "next/image"
+import { cn } from "@/lib/utils"
+
+export function LumenMark({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="12" cy="12" r="2.5" fill="currentColor" />
-    </svg>
+    <Image
+      src="/logo.png"
+      alt="Lumen"
+      width={24}
+      height={24}
+      className={cn("size-4 object-contain shrink-0", className)}
+      priority
+    />
   )
 }

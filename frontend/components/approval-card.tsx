@@ -23,7 +23,9 @@ export function ApprovalCard({ turn, userId }: ApprovalCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
 
   const activeStreams = useChatStore((s) => s.activeStreams)
+  const usage = useChatStore((s) => s.usage)
   const isBusy = activeStreams > 0
+  const isLimitReached = Boolean(usage && usage.remaining === 0)
 
   const handleApprove = () => {
     if (isBusy) return
@@ -154,15 +156,20 @@ export function ApprovalCard({ turn, userId }: ApprovalCardProps) {
           >
             Reject
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={isBusy}
-            onClick={() => setEditing(true)}
+          <span
+            className={isLimitReached ? "inline-block cursor-not-allowed" : "inline-block"}
+            title={isLimitReached ? "Editing counts as a new query and your daily limit is reached." : undefined}
           >
-            Edit
-          </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isBusy || isLimitReached}
+              onClick={() => setEditing(true)}
+            >
+              Edit
+            </Button>
+          </span>
         </div>
       )}
     </div>

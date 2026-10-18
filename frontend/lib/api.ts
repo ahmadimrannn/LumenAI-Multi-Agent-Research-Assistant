@@ -1,4 +1,4 @@
-import type { Session } from "@/lib/types"
+import type { Session, Usage } from "@/lib/types"
 
 export class AuthRequiredError extends Error {}
 
@@ -77,4 +77,31 @@ export async function fetchSessions(userId: string): Promise<Session[]> {
   if (!res.ok) throw new Error(`Sessions request failed with ${res.status}`)
   const body = (await res.json()) as { sessions: Session[] }
   return body.sessions
+}
+
+export function readUsageHeaders(res: Response): Usage | null {
+  const limitStr = res.headers.get("X-RateLimit-Limit")
+  const remainingStr = res.headers.get("X-RateLimit-Remaining")
+  const resetStr = res.headers.get("X-RateLimit-Reset")
+  if (!limitStr || !remainingStr || !resetStr) return null
+  const limit = parseInt(limitStr, 10)
+  const remaining = parseInt(remainingStr, 10)
+  if (isNaN(limit) || isNaN(remaining)) return null
+  const used = Math.max(limit - remaining, 0)
+  return {
+    limit,
+    used,
+    remaining,
+    resetsAt: resetStr,
+  }
+}
+
+export async function fetchUsage(userId: string): Promise<Usage | null> {
+  try {
+    const res = await apiFetch("/usage", { method: "GET" }, userId)
+    if (!res.ok) return null
+    return (await res.json()) as Usage
+  } catch {
+    return null
+  }
 }

@@ -29,6 +29,16 @@ export interface Turn {
   terminationReason?: string
   interrupt?: unknown
   errorMessage?: string
+  cached?: boolean
+  cachedAt?: string
+  errorCode?: "daily_limit_reached" | "service_busy"
+}
+
+export interface Usage {
+  limit: number
+  used: number
+  remaining: number
+  resetsAt: string
 }
 
 export interface Session {

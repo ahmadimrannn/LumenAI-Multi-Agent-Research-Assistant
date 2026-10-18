@@ -23,8 +23,21 @@ export function Composer({ isDocked = false, className }: ComposerProps) {
   const turnsBySession = useChatStore((s) => s.turnsBySession)
   const abortTurn = useChatStore((s) => s.abortTurn)
   const abortAll = useChatStore((s) => s.abortAll)
+  const usage = useChatStore((s) => s.usage)
 
   const isStreaming = activeStreams > 0
+  const isLimitReached = Boolean(userId && usage && usage.remaining === 0)
+
+  let resetTimeStr = "5:00 AM"
+  if (usage?.resetsAt) {
+    try {
+      resetTimeStr = new Date(usage.resetsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    } catch {}
+  }
+
+  const placeholder = isLimitReached
+    ? `Daily limit reached. Resets at ${resetTimeStr}.`
+    : "Ask Lumen to research anything"
 
   const key = activeSessionId ?? NEW_CHAT_KEY
   const turns = turnsBySession[key] ?? []
@@ -41,7 +54,7 @@ export function Composer({ isDocked = false, className }: ComposerProps) {
 
   const handleSend = () => {
     const text = query.trim()
-    if (!text || isStreaming) return
+    if (!text || isStreaming || isLimitReached) return
     if (!userId) {
       requestSignIn(text)
     } else {
@@ -82,8 +95,9 @@ export function Composer({ isDocked = false, className }: ComposerProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Lumen to research anything"
-            className="w-full resize-none border-0 bg-transparent px-2.5 py-1.5 text-sm sm:text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0 max-h-[160px] overflow-y-auto"
+            disabled={isLimitReached}
+            placeholder={placeholder}
+            className="w-full resize-none border-0 bg-transparent px-2.5 py-1.5 text-sm sm:text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0 max-h-[160px] overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
           />
           <div className="flex items-center justify-end px-1">
             {isStreaming ? (
@@ -99,7 +113,7 @@ export function Composer({ isDocked = false, className }: ComposerProps) {
               <button
                 type="button"
                 onClick={handleSend}
-                disabled={!query.trim()}
+                disabled={!query.trim() || isLimitReached}
                 aria-label="Send message"
                 className="size-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.97] hover:opacity-90"
               >
@@ -109,9 +123,11 @@ export function Composer({ isDocked = false, className }: ComposerProps) {
           </div>
         </div>
       </motion.div>
-      {isDocked && (
+      {(isDocked || (userId && usage)) && (
         <p className="mt-2 text-center text-xs text-muted-foreground select-none">
-          Lumen can make mistakes. Check anything important.
+          {userId && usage
+            ? `${usage.remaining} of ${usage.limit} left today · Lumen can make mistakes. Check anything important.`
+            : "Lumen can make mistakes. Check anything important."}
         </p>
       )}
     </div>

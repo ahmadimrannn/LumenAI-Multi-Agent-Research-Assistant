@@ -12,6 +12,8 @@ load_dotenv()
 
 
 
+from langchain_core.messages import AIMessage, HumanMessage
+
 def _build_initial_state(query: str) -> dict:
     """Full state for a brand-new thread."""
     return {
@@ -37,6 +39,66 @@ def _build_initial_state(query: str) -> dict:
         "next_agent": "",
         "degraded": False,
         "route": "",
+    }
+
+
+def seed_thread_from_cache(thread_id: str, query: str, payload: dict) -> None:
+    """Writes the cached result into the thread's checkpoint so follow-ups work seamlessly."""
+    config = {"configurable": {"thread_id": thread_id}}
+    values = _build_initial_state(query)
+
+    findings = payload.get("response", "")
+    search_results = payload.get("search_results", [])
+    raw_search_results = payload.get("raw_search_results", [])
+    evidence_extracted = payload.get("evidence_extracted", [])
+    conflicts_analysis = payload.get("conflicts_analysis", [])
+    requires_external_research = payload.get("requires_external_research", False)
+    knowledge_source = payload.get("knowledge_source", "external_research" if requires_external_research else "internal_knowledge")
+
+    report_summary = f"""
+    Report Writer completed successfully.
+
+    Report Status: Normal
+
+    Sources Used: {len(search_results)}
+
+    Report Length: {len(findings.split())} words
+
+    Next Agent -> END
+    """.strip()
+
+    values.update({
+        "findings": findings,
+        "knowledge_source": knowledge_source,
+        "knowledge_content": payload.get("knowledge_content", ""),
+        "requires_external_research": requires_external_research,
+        "search_results": search_results,
+        "raw_search_results": raw_search_results,
+        "evidence_extracted": evidence_extracted,
+        "conflicts_analysis": conflicts_analysis,
+        "degraded": False,
+        "termination_reason": "",
+        "route": "end",
+        "next_agent": "end",
+        "messages": [
+            HumanMessage(content=query),
+            AIMessage(content=report_summary),
+        ],
+    })
+    graph.update_state(config, values, as_node="report_writer")
+
+
+def cached_events(thread_id: str, cached: dict) -> Generator[dict[str, Any], None, None]:
+    created_at = cached["created_at"]
+    cached_at_str = created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at)
+    yield {
+        "type": "completed",
+        "status": "completed",
+        "thread_id": thread_id,
+        **cached["payload"],
+        "messages": [],
+        "cached": True,
+        "cached_at": cached_at_str,
     }
 
 

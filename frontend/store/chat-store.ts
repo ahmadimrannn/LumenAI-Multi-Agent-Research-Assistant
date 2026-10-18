@@ -1,7 +1,7 @@
 "use client"
 import { create } from "zustand"
 import { persist, createJSONStorage, type StateStorage } from "zustand/middleware"
-import type { Session, Turn } from "@/lib/types"
+import type { Session, Turn, Usage } from "@/lib/types"
 
 export const NEW_CHAT_KEY = "__new__"
 
@@ -29,9 +29,11 @@ interface ChatState {
   hydrated: boolean
   signInOpen: boolean
   activeStreams: number
+  usage: Usage | null
 
   setActiveSession: (id: string | null) => void
   setSignInOpen: (open: boolean) => void
+  setUsage: (u: Usage | null) => void
   appendTurn: (key: string, turn: Turn) => void
   updateTurn: (key: string, turnId: string, patch: Partial<Turn>) => void
   addProgressStep: (key: string, turnId: string, node: string) => void
@@ -55,9 +57,11 @@ export const useChatStore = create<ChatState>()(
       hydrated: false,
       signInOpen: false,
       activeStreams: 0,
+      usage: null,
 
       setActiveSession: (id) => set({ activeSessionId: id }),
       setSignInOpen: (open) => set({ signInOpen: open }),
+      setUsage: (u) => set({ usage: u }),
 
       appendTurn: (key, turn) =>
         set((s) => ({
@@ -148,6 +152,7 @@ export const useChatStore = create<ChatState>()(
           activeSessionId: null,
           hydrated: false,
           signInOpen: false,
+          usage: null,
         }),
 
       registerController: (turnId, controller) => {

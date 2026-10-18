@@ -1,5 +1,5 @@
 import { useChatStore, NEW_CHAT_KEY } from "@/store/chat-store"
-import { apiFetch, fetchSessions, AuthRequiredError, TokenError, NetworkError } from "@/lib/api"
+import { apiFetch, fetchSessions, fetchUsage, readUsageHeaders, AuthRequiredError, TokenError, NetworkError } from "@/lib/api"
 import { readEvents } from "@/lib/sse"
 import type { LumenEvent, Turn } from "@/lib/types"
 
@@ -23,11 +23,15 @@ function handleEvent(key: string, turnId: string, event: LumenEvent, fail: (m: s
       return true
     case "completed": {
       const response = (event.response ?? "").trim()
+      const cached = Boolean((event as Record<string, unknown>).cached)
+      const cachedAt = typeof (event as Record<string, unknown>).cached_at === "string" ? ((event as Record<string, unknown>).cached_at as string) : undefined
       if (!response && event.termination_reason) {
         store().updateTurn(key, turnId, {
           status: "terminated",
           terminationReason: event.termination_reason,
           interrupt: undefined,
+          cached,
+          cachedAt,
         })
       } else {
         store().updateTurn(key, turnId, {
@@ -38,6 +42,8 @@ function handleEvent(key: string, turnId: string, event: LumenEvent, fail: (m: s
           degraded: event.degraded,
           interrupt: undefined,
           errorMessage: undefined,
+          cached,
+          cachedAt,
         })
       }
       return true
@@ -86,12 +92,45 @@ async function runTurn(userId: string, sessionKey: string, turnId: string, run: 
             userId,
           )
 
+    const usageFromHeaders = readUsageHeaders(res)
+    if (usageFromHeaders) {
+      store().setUsage(usageFromHeaders)
+    }
+
     if (!res.ok) {
       if (res.status === 401) {
         store().setSignInOpen(true)
         fail("Your session expired. Sign in again.")
       } else if (res.status === 403) {
         fail("This conversation is not available to your account.")
+      } else if (res.status === 429) {
+        let code: "daily_limit_reached" | "service_busy" = "daily_limit_reached"
+        let msg = "Daily limit reached."
+        try {
+          const b = await res.json()
+          if (b?.detail && typeof b.detail === "object") {
+            const detail = b.detail as { code?: string; limit?: number; resetsAt?: string }
+            if (detail.code === "service_busy" || detail.code === "daily_limit_reached") {
+              code = detail.code
+            }
+            if (code === "daily_limit_reached" && detail.limit && detail.resetsAt) {
+              store().setUsage({
+                limit: detail.limit,
+                used: detail.limit,
+                remaining: 0,
+                resetsAt: detail.resetsAt,
+              })
+              msg = `You have used all ${detail.limit} research queries for today.`
+            } else if (code === "service_busy") {
+              msg = "Too many people are using Lumen right now. Try again later."
+            }
+          }
+        } catch {}
+        store().updateTurn(key, turnId, {
+          status: "error",
+          errorCode: code,
+          errorMessage: msg,
+        })
       } else {
         let detail = ""
         try {
@@ -135,6 +174,11 @@ async function runTurn(userId: string, sessionKey: string, turnId: string, run: 
     if (key !== NEW_CHAT_KEY) store().touchSession(key)
     void fetchSessions(userId)
       .then((list) => store().mergeServerSessions(list))
+      .catch(() => {})
+    void fetchUsage(userId)
+      .then((u) => {
+        if (u) store().setUsage(u)
+      })
       .catch(() => {})
   }
 }

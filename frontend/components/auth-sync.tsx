@@ -2,7 +2,7 @@
 import { useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { useChatStore, setStorageUser } from "@/store/chat-store"
-import { clearTokenCache, fetchSessions } from "@/lib/api"
+import { clearTokenCache, fetchSessions, fetchUsage } from "@/lib/api"
 
 export function AuthSync() {
   const { data: session } = useSession()
@@ -31,8 +31,14 @@ export function AuthSync() {
       useChatStore.getState().normalizeStaleStreams()
       useChatStore.setState({ hydrated: true })
       try {
-        const list = await fetchSessions(userId)
-        if (runId === latestRun.current) useChatStore.getState().mergeServerSessions(list)
+        const [list, usage] = await Promise.allSettled([
+          fetchSessions(userId),
+          fetchUsage(userId),
+        ])
+        if (runId === latestRun.current) {
+          if (list.status === "fulfilled") useChatStore.getState().mergeServerSessions(list.value)
+          if (usage.status === "fulfilled" && usage.value) useChatStore.getState().setUsage(usage.value)
+        }
       } catch {}
     }
     void run()

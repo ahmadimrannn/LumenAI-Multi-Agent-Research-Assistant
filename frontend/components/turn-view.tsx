@@ -3,6 +3,7 @@ import { useState } from "react"
 import { useSession } from "next-auth/react"
 import type { Turn } from "@/lib/types"
 import { retryTurn } from "@/lib/chat-actions"
+import { useChatStore } from "@/store/chat-store"
 import { LumenMark } from "@/components/lumen-mark"
 import { ProgressTrace } from "@/components/progress-trace"
 import { ReportView } from "@/components/report-view"
@@ -16,7 +17,18 @@ interface TurnViewProps {
 export function TurnView({ turn }: TurnViewProps) {
   const { data: session } = useSession()
   const userId = session?.user?.id ?? ""
+  const usage = useChatStore((s) => s.usage)
   const [wasCompletedOnMount] = useState(() => turn.status === "completed")
+
+  const isDailyLimit = turn.errorCode === "daily_limit_reached"
+  const isServiceBusy = turn.errorCode === "service_busy"
+
+  let localResetTime = "5:00 AM"
+  if (usage?.resetsAt) {
+    try {
+      localResetTime = new Date(usage.resetsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    } catch {}
+  }
 
   const isForbidden =
     turn.errorMessage?.includes("not available to your account") || false
@@ -78,13 +90,21 @@ export function TurnView({ turn }: TurnViewProps) {
 
           {turn.status === "error" && (
             <div className="rounded-xl border border-border bg-card p-4 space-y-2">
-              <div className="text-sm font-medium text-foreground">Something went wrong.</div>
-              {turn.errorMessage && (
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {turn.errorMessage}
-                </p>
-              )}
-              {!isForbidden && (
+              <div className="text-sm font-medium text-foreground">
+                {isDailyLimit
+                  ? "Daily limit reached"
+                  : isServiceBusy
+                  ? "Lumen is busy"
+                  : "Something went wrong."}
+              </div>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {isDailyLimit
+                  ? `You have used all ${usage?.limit ?? 10} research queries for today. The limit resets at ${localResetTime}.`
+                  : isServiceBusy
+                  ? "Too many people are using Lumen right now. Try again later."
+                  : turn.errorMessage}
+              </p>
+              {!isForbidden && !isDailyLimit && (
                 <div className="pt-1">
                   <Button
                     type="button"

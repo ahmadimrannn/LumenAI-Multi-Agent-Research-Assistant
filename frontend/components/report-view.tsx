@@ -20,13 +20,30 @@ interface ReportViewProps {
 
 const EASING = [0.22, 1, 0.36, 1] as const
 
+function formatCachedRelativeTime(cachedAt?: string): string {
+  if (!cachedAt) return "Answered from a saved result."
+  try {
+    const diffMs = new Date(cachedAt).getTime() - Date.now()
+    const diffHours = Math.round(diffMs / (1000 * 60 * 60))
+    const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" })
+    if (Math.abs(diffHours) >= 24) {
+      const diffDays = Math.round(diffHours / 24)
+      return `Answered from a saved result from ${rtf.format(diffDays, "day")}.`
+    }
+    return `Answered from a saved result from ${rtf.format(diffHours, "hour")}.`
+  } catch {
+    return "Answered from a saved result."
+  }
+}
+
 export function ReportView({ turn, shouldAnimate }: ReportViewProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
 
   const hasDetails =
     turn.knowledgeSource !== undefined ||
     turn.requiresExternalResearch !== undefined ||
-    turn.degraded === true
+    turn.degraded === true ||
+    turn.cached === true
 
   const content = (
     <div className="flex flex-col gap-4">
@@ -61,6 +78,13 @@ export function ReportView({ turn, shouldAnimate }: ReportViewProps) {
               <span>Details</span>
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-2 space-y-1.5 pl-4 border-l border-border text-xs">
+              {turn.cached && (
+                <div>
+                  <span className="text-muted-foreground">
+                    {formatCachedRelativeTime(turn.cachedAt)}
+                  </span>
+                </div>
+              )}
               {turn.knowledgeSource && (
                 <div>
                   <span className="text-muted-foreground">Knowledge source: </span>
